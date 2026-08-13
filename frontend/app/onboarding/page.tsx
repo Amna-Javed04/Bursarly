@@ -17,6 +17,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import AuthGuard from "@/app/components/AuthGuard";
+import PageTransition from "@/app/components/PageTransition";
 import { updateMyProfile } from "@/app/lib/api";
 
 // ── Data ──────────────────────────────────────────────────────
@@ -299,7 +300,9 @@ function OnboardingWizard() {
 export default function OnboardingPage() {
   return (
     <AuthGuard>
-      <OnboardingWizard />
+      <PageTransition>
+        <OnboardingWizard />
+      </PageTransition>
     </AuthGuard>
   );
 }

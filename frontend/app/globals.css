@@ -12,10 +12,10 @@
   --cream: #F4F1EA;
   --cream-dark: #E8E4DB;
 
-  /* Deadline urgency */
-  --deadline-safe: #4CAF7D;
-  --deadline-warning: #E3A008;
-  --deadline-urgent: #E4572E;
+  /* Deadline urgency - darkened for WCAG AA contrast compliance */
+  --deadline-safe: #246549;
+  --deadline-warning: #926300;
+  --deadline-urgent: #B33211;
 
   /* Neutrals */
   --text-primary: #1F2937;

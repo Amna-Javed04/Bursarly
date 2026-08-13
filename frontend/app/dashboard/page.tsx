@@ -15,6 +15,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import AuthGuard from "@/app/components/AuthGuard";
+import PageTransition from "@/app/components/PageTransition";
 import {
   getMyTrackedScholarships,
   updateTrackerStatus,
@@ -547,7 +548,9 @@ function DashboardContent() {
 export default function DashboardPage() {
   return (
     <AuthGuard>
-      <DashboardContent />
+      <PageTransition>
+        <DashboardContent />
+      </PageTransition>
     </AuthGuard>
   );
 }
