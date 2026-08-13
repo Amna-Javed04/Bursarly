@@ -115,3 +115,23 @@ def get_current_user_id(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="The provided user ID is not a valid UUID format.",
         )
+
+
+def get_admin_user(
+    user_id: uuid.UUID = Depends(get_current_user_id),
+) -> uuid.UUID:
+    """Dependency to enforce admin access."""
+    from app.database import SessionLocal
+    from app.models import User
+    
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user or not user.is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin privileges required."
+            )
+        return user_id
+    finally:
+        db.close()

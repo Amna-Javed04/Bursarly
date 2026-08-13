@@ -205,3 +205,19 @@ export async function updateMyProfile(data: UserProfileUpdate): Promise<UserProf
     body: JSON.stringify(data),
   });
 }
+
+// ── Protected: Admin Endpoints ──
+
+export async function getPendingScholarships(): Promise<ScholarshipDetail[]> {
+  return authFetch("/admin/scholarships");
+}
+
+export async function updateScholarshipAdmin(
+  id: string,
+  data: Partial<ScholarshipDetail>
+): Promise<ScholarshipDetail> {
+  return authFetch(`/admin/scholarships/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}

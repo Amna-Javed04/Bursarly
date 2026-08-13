@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import engine, get_db, Base
 from app import crud, models, schemas
-from app.auth import get_current_user_id
+from app.auth import get_current_user_id, get_admin_user
 
 # ── Setup ─────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO)
@@ -237,3 +237,37 @@ def update_my_profile(
 ):
     """Create or update the authenticated user's profile / onboarding answers."""
     return crud.create_or_update_user_profile(db, user_id=current_user_id, profile_data=profile_data)
+
+
+# ── Admin Endpoints ───────────────────────────────────────────
+
+@app.get("/admin/scholarships", response_model=List[schemas.ScholarshipDetailResponse], tags=["admin"])
+def get_pending_scholarships(
+    admin_id: uuid.UUID = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Admin only: list scholarships requiring review."""
+    return db.query(models.Scholarship).filter(
+        models.Scholarship.status.in_(["pending_review", "needs_fix"])
+    ).all()
+
+
+@app.patch("/admin/scholarships/{id}", response_model=schemas.ScholarshipDetailResponse, tags=["admin"])
+def update_scholarship_admin(
+    id: uuid.UUID,
+    update_data: schemas.AdminScholarshipUpdate,
+    admin_id: uuid.UUID = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Admin only: edit, approve, or reject a scraped scholarship."""
+    scholarship = db.query(models.Scholarship).filter(models.Scholarship.id == id).first()
+    if not scholarship:
+        raise HTTPException(status_code=404, detail="Scholarship not found")
+    
+    update_dict = update_data.model_dump(exclude_unset=True)
+    for key, value in update_dict.items():
+        setattr(scholarship, key, value)
+        
+    db.commit()
+    db.refresh(scholarship)
+    return scholarship

@@ -110,6 +110,13 @@ class ScholarshipDetailResponse(BaseModel):
         from_attributes = True
 
 
+class AdminScholarshipUpdate(BaseModel):
+    name: Optional[str] = None
+    country: Optional[str] = None
+    degree_level: Optional[str] = None
+    funding_type: Optional[str] = None
+    status: Optional[str] = Field(None, pattern="^(pending_review|needs_fix|approved|rejected)$")
+    
 # --- Tracker (UserScholarship) Schemas ---
 
 class UserScholarshipCreate(BaseModel):
