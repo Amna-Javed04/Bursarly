@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     # CORS Settings
     # We restrict CORS to specific domains as required (defaulting to local frontend port for development)
-    CORS_ORIGINS: Union[List[str], str] = ["http://localhost:3000"]
+    CORS_ORIGINS: Union[List[str], str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
