@@ -1,0 +1,50 @@
+name: Bursarly Scholarship Scraper
+
+on:
+  schedule:
+    # Run daily at midnight UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allow manual triggers
+
+jobs:
+  scrape-and-extract:
+    runs-on: ubuntu-latest
+    
+    # We can easily add more sources to this matrix when new scrapers are built
+    strategy:
+      matrix:
+        source: [gks]
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install requests beautifulsoup4 playwright openai pydantic pydantic-settings
+          playwright install chromium
+
+      - name: Run Scraper (${{ matrix.source }})
+        run: |
+          # Extend this switch statement as more sources are added
+          if [ "${{ matrix.source }}" = "gks" ]; then
+            python scraper/scraper.py
+          fi
+          
+      - name: Run LLM Extraction (${{ matrix.source }})
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ "${{ matrix.source }}" = "gks" ]; then
+            python scraper/extractor.py
+          fi
