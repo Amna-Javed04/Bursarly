@@ -28,6 +28,17 @@ class Settings(BaseSettings):
     # Security
     ADMIN_API_KEY: str = "admin-secret-key-change-in-production"
 
+    # Supabase Auth Settings (for JWT verification)
+    # These are required for production. Leave empty for SQLite/local dev (mock auth is used).
+    SUPABASE_URL: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
+    # JWT secret from Supabase project: Settings → API → JWT Secret
+    SUPABASE_JWT_SECRET: str = ""
+
+    # Rate limiting: requests per minute for auth endpoints
+    AUTH_RATE_LIMIT: str = "10/minute"
+    LOGIN_RATE_LIMIT: str = "5/minute"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

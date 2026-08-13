@@ -1,7 +1,12 @@
 /**
  * Bursarly API client — connects to the FastAPI backend.
  * All endpoints are typed against the backend Pydantic schemas.
+ *
+ * Protected endpoints automatically attach the Supabase Bearer token
+ * by calling supabase.auth.getSession() before each request.
  */
+
+import { supabase } from "@/app/lib/supabase";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -81,6 +86,9 @@ export class ApiError extends Error {
   }
 }
 
+// ── Fetch helpers ──
+
+/** Public fetch — no auth token attached */
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { "Content-Type": "application/json", ...options?.headers },
@@ -95,7 +103,34 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
-// ── Scholarship Endpoints ──
+/** Protected fetch — automatically attaches Supabase Bearer token */
+async function authFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options?.headers as Record<string, string>),
+  };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers,
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: { message: "Network error" } }));
+    throw new ApiError(body?.error?.message || `Request failed (${res.status})`, res.status);
+  }
+
+  return res.json();
+}
+
+// ── Public Scholarship Endpoints ──
 
 export async function getScholarships(filters?: {
   country?: string;
@@ -126,18 +161,22 @@ export async function getScholarshipResources(
   return apiFetch(`/scholarships/${id}/resources${qs}`);
 }
 
-// ── User Scholarship Tracker ──
+// ── Protected User Tracker Endpoints ──
 
 export async function addToTracker(
   scholarshipId: string,
   status: string = "interested"
 ): Promise<UserScholarship> {
-  return apiFetch("/user-scholarships", {
+  return authFetch("/user-scholarships", {
     method: "POST",
     body: JSON.stringify({ scholarship_id: scholarshipId, status }),
   });
 }
 
 export async function getMyTrackedScholarships(): Promise<UserScholarship[]> {
-  return apiFetch("/user-scholarships/me");
+  return authFetch("/user-scholarships/me");
+}
+
+export async function getMyProfile() {
+  return authFetch("/user-profile/me");
 }
