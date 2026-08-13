@@ -1,45 +1,32 @@
-# ==== Environment variables & secrets ====
+# Environment Variables
 .env
 .env.local
-.env.*.local
-*.pem
+.env.development.local
+.env.test.local
+.env.production.local
 
-# ==== Node / Next.js (frontend) ====
-node_modules/
-.next/
-out/
-build/
-.vercel
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# ==== Python / FastAPI (backend) ====
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 .venv/
 venv/
+ENV/
 env/
-*.egg-info/
 .pytest_cache/
-.mypy_cache/
+.coverage
+htmlcov/
 
-# ==== Database ====
-*.sqlite3
-*.db
+# Node/Next.js
+node_modules/
+.next/
+out/
+build/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# ==== Editor / OS ====
+# OS-specific
 .DS_Store
 Thumbs.db
-.vscode/
-.idea/
-*.swp
-
-# ==== Logs ====
-*.log
-logs/
-
-# ==== GitHub Actions local testing (if used) ====
-.act/
