@@ -52,8 +52,8 @@ export default function LoginPage() {
         setUnverifiedEmail(true);
         return;
       }
-      // Generic — never reveal whether the email exists
-      setServerError("Incorrect email or password. Please try again.");
+      console.error("Supabase Auth Error:", error);
+      setServerError(`Error: ${error.message}`);
       return;
     }
 

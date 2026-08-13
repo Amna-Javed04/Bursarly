@@ -91,8 +91,8 @@ export default function SignupPage() {
     setLoading(false);
 
     if (error) {
-      // Generic message — do not reveal internal auth details
-      setServerError("We couldn't create your account. Please try again or use a different email.");
+      console.error("Supabase Auth Error:", error);
+      setServerError(`Error: ${error.message}`);
       return;
     }
 
