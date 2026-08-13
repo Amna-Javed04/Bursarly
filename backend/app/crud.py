@@ -235,3 +235,56 @@ def get_user_tracked_scholarships(db: Session, user_id: UUID) -> List[models.Use
         tracked.append(us)
         
     return tracked
+
+
+def update_user_scholarship_status(
+    db: Session, tracker_id: UUID, user_id: UUID, new_status: str
+) -> Optional[models.UserScholarship]:
+    """
+    Update the status of a tracked scholarship.
+    Returns None if the entry doesn't exist or doesn't belong to the user.
+    """
+    entry = db.query(models.UserScholarship).filter(
+        and_(
+            models.UserScholarship.id == tracker_id,
+            models.UserScholarship.user_id == user_id
+        )
+    ).first()
+    if not entry:
+        return None
+    entry.status = new_status
+    db.commit()
+    db.refresh(entry)
+    # Re-attach nearest_deadline
+    entry.scholarship.nearest_deadline = (
+        db.query(models.ScholarshipDeadline.deadline_date)
+        .filter(
+            and_(
+                models.ScholarshipDeadline.scholarship_id == entry.scholarship_id,
+                models.ScholarshipDeadline.deadline_date >= date.today()
+            )
+        )
+        .order_by(models.ScholarshipDeadline.deadline_date.asc())
+        .scalar()
+    )
+    return entry
+
+
+def remove_user_scholarship(
+    db: Session, tracker_id: UUID, user_id: UUID
+) -> bool:
+    """
+    Delete a tracked scholarship entry.
+    Returns True if deleted, False if not found or not owned by user.
+    """
+    entry = db.query(models.UserScholarship).filter(
+        and_(
+            models.UserScholarship.id == tracker_id,
+            models.UserScholarship.user_id == user_id
+        )
+    ).first()
+    if not entry:
+        return False
+    db.delete(entry)
+    db.commit()
+    return True

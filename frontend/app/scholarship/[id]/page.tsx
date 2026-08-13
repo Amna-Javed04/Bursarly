@@ -3,12 +3,14 @@
 import { useState, useEffect, use } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { getScholarshipById, type ScholarshipDetail } from "@/app/lib/api";
+import { useRouter } from "next/navigation";
+import { getScholarshipById, addToTracker, type ScholarshipDetail } from "@/app/lib/api";
 import {
   getDeadlineUrgency, getUrgencyClasses, formatDeadlineDate,
   formatDaysRemaining, getCountryFlag, formatFundingType, formatHelpCategory,
 } from "@/app/lib/utils";
 import PageTransition from "@/app/components/PageTransition";
+import { useAuth } from "@/app/context/AuthContext";
 
 const RESOURCE_CATEGORIES = [
   { key: "essay_help", icon: "📝" },
@@ -32,56 +34,22 @@ function DetailSkeleton() {
   );
 }
 
-function TrackerModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-dark/40 backdrop-blur-sm"
-          onClick={onClose}
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ duration: 0.2 }}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-surface rounded-2xl p-6 sm:p-8 max-w-sm w-full shadow-[var(--shadow-lg)] border border-border/50"
-          >
-            <div className="text-center">
-              <div className="w-12 h-12 rounded-full bg-teal/10 text-teal flex items-center justify-center mx-auto mb-4">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-navy mb-2">Sign up to track</h3>
-              <p className="text-sm text-text-secondary mb-6">
-                Create a free account to save scholarships, track deadlines, and get reminders.
-              </p>
-              <div className="space-y-2.5">
-                <button className="w-full py-2.5 px-4 bg-navy text-white text-sm font-semibold rounded-xl hover:bg-navy-light transition-colors">
-                  Create Account
-                </button>
-                <button onClick={onClose} className="w-full py-2.5 px-4 bg-transparent text-text-secondary text-sm font-medium rounded-xl hover:bg-surface-raised transition-colors">
-                  Maybe Later
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
+// ── Tracker button states ─────────────────────────────────────
+type TrackerState = "idle" | "loading" | "added" | "error";
 
 export default function ScholarshipDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+
   const [scholarship, setScholarship] = useState<ScholarshipDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("essay_help");
-  const [showModal, setShowModal] = useState(false);
+
+  // Tracker state
+  const [trackerState, setTrackerState] = useState<TrackerState>("idle");
+  const [trackerError, setTrackerError] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -98,6 +66,29 @@ export default function ScholarshipDetailPage({ params }: { params: Promise<{ id
       }
     })();
   }, [id]);
+
+  async function handleAddToTracker() {
+    // Not logged in → redirect to signup with return path
+    if (!user) {
+      router.push(`/signup?next=/scholarship/${id}`);
+      return;
+    }
+    // Email not verified → redirect to login which will show the gate
+    if (!user.email_confirmed_at) {
+      router.push(`/login?next=/scholarship/${id}`);
+      return;
+    }
+
+    setTrackerState("loading");
+    setTrackerError("");
+    try {
+      await addToTracker(id);
+      setTrackerState("added");
+    } catch (err: unknown) {
+      setTrackerState("error");
+      setTrackerError(err instanceof Error ? err.message : "Failed to add");
+    }
+  }
 
   if (loading) return <DetailSkeleton />;
 
@@ -120,6 +111,16 @@ export default function ScholarshipDetailPage({ params }: { params: Promise<{ id
     scholarship.resources.some((r) => r.help_category === c.key)
   );
 
+  // Tracker button content
+  const isVerifiedUser = !!user && !!user.email_confirmed_at;
+  const buttonContent = () => {
+    if (authLoading) return <span className="flex items-center gap-2"><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Loading…</span>;
+    if (trackerState === "loading") return <span className="flex items-center gap-2"><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Adding…</span>;
+    if (trackerState === "added") return <span className="flex items-center gap-2"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>Added to Tracker!</span>;
+    if (!user) return <span className="flex items-center gap-2"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>Sign up to Track</span>;
+    return <span className="flex items-center gap-2"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>Add to My Tracker</span>;
+  };
+
   return (
     <PageTransition>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
@@ -131,7 +132,7 @@ export default function ScholarshipDetailPage({ params }: { params: Promise<{ id
           Back to Browse
         </Link>
 
-        {/* Title */}
+        {/* Title + tracker button */}
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
           <div>
             <div className="flex items-center gap-2 mb-2">
@@ -144,22 +145,64 @@ export default function ScholarshipDetailPage({ params }: { params: Promise<{ id
               <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-navy/5 text-navy/80">{scholarship.degree_level}</span>
             </div>
           </div>
-          <button
-            onClick={() => setShowModal(true)}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-teal text-white font-semibold text-sm rounded-xl hover:bg-teal-dark shadow-[var(--shadow-md)] transition-all duration-200 active:scale-[0.97] flex-shrink-0"
-            id="add-to-tracker-btn"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
-            </svg>
-            Add to My Tracker
-          </button>
+
+          {/* Tracker button */}
+          <div className="flex flex-col items-start sm:items-end gap-2">
+            <motion.button
+              onClick={handleAddToTracker}
+              disabled={trackerState === "loading" || trackerState === "added" || authLoading}
+              whileTap={{ scale: 0.97 }}
+              id="add-to-tracker-btn"
+              className={`inline-flex items-center gap-2 px-5 py-2.5 font-semibold text-sm rounded-xl
+                shadow-[var(--shadow-md)] transition-all duration-200 flex-shrink-0
+                ${trackerState === "added"
+                  ? "bg-deadline-safe text-white cursor-default"
+                  : "bg-teal text-white hover:bg-teal-dark active:scale-[0.97]"
+                }
+                disabled:opacity-60 disabled:cursor-not-allowed`}
+            >
+              {buttonContent()}
+            </motion.button>
+
+            {/* Link to dashboard if added */}
+            <AnimatePresence>
+              {trackerState === "added" && (
+                <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                  <Link href="/dashboard" className="text-xs text-teal hover:text-teal-dark font-medium transition-colors">
+                    View in Dashboard →
+                  </Link>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Error */}
+            <AnimatePresence>
+              {trackerState === "error" && (
+                <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="text-xs text-deadline-urgent">
+                  {trackerError || "Failed to add. Try again."}
+                </motion.p>
+              )}
+            </AnimatePresence>
+
+            {/* Sign-in nudge for guests */}
+            {!authLoading && !user && (
+              <p className="text-xs text-text-muted">
+                Or{" "}
+                <Link href={`/login?next=/scholarship/${id}`} className="text-teal hover:underline">
+                  log in
+                </Link>{" "}
+                to your existing account
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Info Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-          {/* Deadlines Card */}
-          <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.1}} className="bg-surface rounded-xl p-5 border border-border/50 shadow-[var(--shadow-card)]">
+          {/* Deadlines */}
+          <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.1}}
+            className="bg-surface rounded-xl p-5 border border-border/50 shadow-[var(--shadow-card)]">
             <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Deadlines</h3>
             {futureDeadlines.length > 0 ? (
               <div className="space-y-2.5">
@@ -182,8 +225,9 @@ export default function ScholarshipDetailPage({ params }: { params: Promise<{ id
             )}
           </motion.div>
 
-          {/* Eligibility Card */}
-          <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.2}} className="bg-surface rounded-xl p-5 border border-border/50 shadow-[var(--shadow-card)]">
+          {/* Eligibility */}
+          <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.2}}
+            className="bg-surface rounded-xl p-5 border border-border/50 shadow-[var(--shadow-card)]">
             <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Eligibility</h3>
             {scholarship.eligibility.length > 0 ? (
               <ul className="space-y-2">
@@ -201,8 +245,9 @@ export default function ScholarshipDetailPage({ params }: { params: Promise<{ id
             )}
           </motion.div>
 
-          {/* Documents Card */}
-          <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.3}} className="bg-surface rounded-xl p-5 border border-border/50 shadow-[var(--shadow-card)]">
+          {/* Documents */}
+          <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.3}}
+            className="bg-surface rounded-xl p-5 border border-border/50 shadow-[var(--shadow-card)]">
             <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Required Documents</h3>
             {scholarship.documents.length > 0 ? (
               <ul className="space-y-2">
@@ -224,8 +269,7 @@ export default function ScholarshipDetailPage({ params }: { params: Promise<{ id
         {scholarship.official_url && (
           <div className="mb-8">
             <a href={scholarship.official_url} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-surface text-sm font-medium text-navy hover:border-teal/40 hover:bg-teal/5 transition-all"
-            >
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-surface text-sm font-medium text-navy hover:border-teal/40 hover:bg-teal/5 transition-all">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
               </svg>
@@ -238,13 +282,11 @@ export default function ScholarshipDetailPage({ params }: { params: Promise<{ id
         {scholarship.resources.length > 0 && (
           <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:0.4}}>
             <h2 className="text-xl font-bold text-navy mb-4">Help & Resources</h2>
-            {/* Tab bar */}
             <div className="flex gap-1 mb-5 overflow-x-auto pb-1">
               {availableCategories.map((cat) => (
                 <button key={cat.key} onClick={() => setActiveTab(cat.key)}
                   className={`relative flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors
-                    ${activeTab === cat.key ? "text-navy bg-surface shadow-[var(--shadow-sm)] border border-border/50" : "text-text-secondary hover:text-navy hover:bg-surface-raised"}`}
-                >
+                    ${activeTab === cat.key ? "text-navy bg-surface shadow-[var(--shadow-sm)] border border-border/50" : "text-text-secondary hover:text-navy hover:bg-surface-raised"}`}>
                   <span>{cat.icon}</span>
                   {formatHelpCategory(cat.key)}
                   {activeTab === cat.key && (
@@ -253,13 +295,12 @@ export default function ScholarshipDetailPage({ params }: { params: Promise<{ id
                 </button>
               ))}
             </div>
-            {/* Resources list */}
+
             <AnimatePresence mode="wait">
               <motion.div key={activeTab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }} className="space-y-3">
                 {filteredResources.map((r) => (
                   <a key={r.id} href={r.url} target="_blank" rel="noopener noreferrer"
-                    className="group flex items-start gap-3 p-4 rounded-xl bg-surface border border-border/50 hover:border-teal/30 hover:shadow-[var(--shadow-card-hover)] transition-all duration-200"
-                  >
+                    className="group flex items-start gap-3 p-4 rounded-xl bg-surface border border-border/50 hover:border-teal/30 hover:shadow-[var(--shadow-card-hover)] transition-all duration-200">
                     <div className="w-8 h-8 rounded-lg bg-navy/5 flex items-center justify-center flex-shrink-0 text-xs">
                       {r.resource_type === "youtube_video" ? "🎥" : r.resource_type === "article" ? "📄" : r.resource_type === "institute" ? "🏛" : "💼"}
                     </div>
@@ -283,8 +324,6 @@ export default function ScholarshipDetailPage({ params }: { params: Promise<{ id
           </motion.div>
         )}
       </div>
-
-      <TrackerModal open={showModal} onClose={() => setShowModal(false)} />
     </PageTransition>
   );
 }

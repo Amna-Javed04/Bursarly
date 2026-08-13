@@ -12,6 +12,10 @@ const NAV_LINKS = [
   { href: "/browse", label: "Browse" },
 ];
 
+const AUTH_NAV_LINKS = [
+  { href: "/dashboard", label: "Dashboard" },
+];
+
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -75,8 +79,26 @@ export default function Navbar() {
             {!loading && (
               <div className="flex items-center gap-2 ml-3 pl-3 border-l border-border/60">
                 {user ? (
-                  /* Signed in: user email chip + sign out */
+                  /* Signed in: Dashboard link + user email chip + preferences + sign out */
                   <>
+                    <Link
+                      href="/dashboard"
+                      id="nav-dashboard-btn"
+                      className={`relative px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200
+                        ${pathname === '/dashboard'
+                          ? 'text-navy'
+                          : 'text-text-secondary hover:text-navy hover:bg-surface-overlay'
+                        }`}
+                    >
+                      Dashboard
+                      {pathname === '/dashboard' && (
+                        <motion.div
+                          layoutId="navbar-indicator"
+                          className="absolute bottom-0 left-2 right-2 h-0.5 bg-teal rounded-full"
+                          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                        />
+                      )}
+                    </Link>
                     <span
                       className="hidden lg:block text-xs text-text-secondary truncate max-w-[140px]"
                       title={user.email ?? ""}

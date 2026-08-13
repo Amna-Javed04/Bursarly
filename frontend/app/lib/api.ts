@@ -10,7 +10,7 @@ import { supabase } from "@/app/lib/supabase";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-// ── Type Definitions (mirroring backend schemas) ──
+// ── Type Definitions ──
 
 export interface ScholarshipListItem {
   id: string;
@@ -70,9 +70,24 @@ export interface UserScholarship {
   id: string;
   user_id: string;
   scholarship_id: string;
-  status: string;
+  status: "interested" | "tracking" | "applied";
   added_at: string;
   scholarship: ScholarshipListItem;
+}
+
+export interface UserProfile {
+  user_id: string;
+  degree_level: string | null;
+  countries_of_interest: string[];
+  field_of_study: string | null;
+  needs_full_funding: boolean;
+}
+
+export interface UserProfileUpdate {
+  degree_level?: string | null;
+  countries_of_interest?: string[];
+  field_of_study?: string | null;
+  needs_full_funding?: boolean;
 }
 
 // ── API Error ──
@@ -94,17 +109,15 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json", ...options?.headers },
     ...options,
   });
-
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: { message: "Network error" } }));
     throw new ApiError(body?.error?.message || `Request failed (${res.status})`, res.status);
   }
-
   return res.json();
 }
 
 /** Protected fetch — automatically attaches Supabase Bearer token */
-async function authFetch<T>(path: string, options?: RequestInit): Promise<T> {
+export async function authFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
 
@@ -112,21 +125,13 @@ async function authFetch<T>(path: string, options?: RequestInit): Promise<T> {
     "Content-Type": "application/json",
     ...(options?.headers as Record<string, string>),
   };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  });
-
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: { message: "Network error" } }));
     throw new ApiError(body?.error?.message || `Request failed (${res.status})`, res.status);
   }
-
   return res.json();
 }
 
@@ -153,19 +158,16 @@ export async function getScholarshipById(id: string): Promise<ScholarshipDetail>
   return apiFetch(`/scholarships/${id}`);
 }
 
-export async function getScholarshipResources(
-  id: string,
-  category?: string
-): Promise<Resource[]> {
+export async function getScholarshipResources(id: string, category?: string): Promise<Resource[]> {
   const qs = category ? `?category=${encodeURIComponent(category)}` : "";
   return apiFetch(`/scholarships/${id}/resources${qs}`);
 }
 
-// ── Protected User Tracker Endpoints ──
+// ── Protected: Tracker Endpoints ──
 
 export async function addToTracker(
   scholarshipId: string,
-  status: string = "interested"
+  status: "interested" | "tracking" | "applied" = "interested"
 ): Promise<UserScholarship> {
   return authFetch("/user-scholarships", {
     method: "POST",
@@ -177,6 +179,29 @@ export async function getMyTrackedScholarships(): Promise<UserScholarship[]> {
   return authFetch("/user-scholarships/me");
 }
 
-export async function getMyProfile() {
+export async function updateTrackerStatus(
+  trackerId: string,
+  status: "interested" | "tracking" | "applied"
+): Promise<UserScholarship> {
+  return authFetch(`/user-scholarships/${trackerId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function removeFromTracker(trackerId: string): Promise<void> {
+  return authFetch(`/user-scholarships/${trackerId}`, { method: "DELETE" });
+}
+
+// ── Protected: Profile Endpoints ──
+
+export async function getMyProfile(): Promise<UserProfile> {
   return authFetch("/user-profile/me");
+}
+
+export async function updateMyProfile(data: UserProfileUpdate): Promise<UserProfile> {
+  return authFetch("/user-profile/me", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
 }

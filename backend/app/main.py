@@ -180,6 +180,40 @@ def read_my_tracked_scholarships(
     return crud.get_user_tracked_scholarships(db, user_id=current_user_id)
 
 
+@app.patch("/user-scholarships/{id}", response_model=schemas.UserScholarshipResponse, tags=["tracker"])
+def update_tracker_status(
+    id: uuid.UUID,
+    update: schemas.UserScholarshipUpdate,
+    current_user_id: uuid.UUID = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """Update the status of a tracked scholarship (interested / tracking / applied)."""
+    entry = crud.update_user_scholarship_status(
+        db, tracker_id=id, user_id=current_user_id, new_status=update.status
+    )
+    if not entry:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tracker entry not found.",
+        )
+    return entry
+
+
+@app.delete("/user-scholarships/{id}", status_code=status.HTTP_204_NO_CONTENT, tags=["tracker"])
+def remove_from_tracker(
+    id: uuid.UUID,
+    current_user_id: uuid.UUID = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """Remove a scholarship from the authenticated user's tracker."""
+    deleted = crud.remove_user_scholarship(db, tracker_id=id, user_id=current_user_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tracker entry not found.",
+        )
+
+
 @app.get("/user-profile/me", response_model=schemas.UserProfileResponse, tags=["profile"])
 def read_my_profile(
     current_user_id: uuid.UUID = Depends(get_current_user_id),

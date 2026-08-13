@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { getScholarships, type ScholarshipListItem } from "@/app/lib/api";
+import { getScholarships, getMyProfile, type ScholarshipListItem } from "@/app/lib/api";
 import ScholarshipCard from "@/app/components/ScholarshipCard";
 import SkeletonCard from "@/app/components/SkeletonCard";
 import SearchBar from "@/app/components/SearchBar";
 import PageTransition from "@/app/components/PageTransition";
+import { useAuth } from "@/app/context/AuthContext";
 
 const COUNTRIES = [
   "Germany",
@@ -16,12 +17,29 @@ const COUNTRIES = [
 ];
 
 export default function BrowsePage() {
+  const { user } = useAuth();
   const [scholarships, setScholarships] = useState<ScholarshipListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCountries, setSelectedCountries] = useState<Set<string>>(new Set());
   const [filterOpen, setFilterOpen] = useState(false);
+  const [usingPrefs, setUsingPrefs] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
+
+  // Load user preferences on first render and pre-populate country filter
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      try {
+        const profile = await getMyProfile();
+        if (profile.countries_of_interest?.length) {
+          setSelectedCountries(new Set(profile.countries_of_interest));
+          setUsingPrefs(true);
+        }
+      } catch { /* profile not set yet — no-op */ }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const fetchScholarships = useCallback(async () => {
     setLoading(true);
@@ -87,13 +105,14 @@ export default function BrowsePage() {
 
   const clearFilters = () => {
     setSelectedCountries(new Set());
+    setUsingPrefs(false);
   };
 
   return (
     <PageTransition>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-navy mb-2">
             Browse Scholarships
           </h1>
@@ -101,6 +120,32 @@ export default function BrowsePage() {
             Explore verified scholarship opportunities worldwide
           </p>
         </div>
+
+        {/* Preferences banner */}
+        <AnimatePresence>
+          {usingPrefs && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mb-5"
+            >
+              <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-teal/5 border border-teal/20">
+                <div className="flex items-center gap-2 text-sm text-teal-dark">
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                      d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                  <span className="font-medium">Filtered by your preferences</span>
+                  <span className="text-teal/70">&mdash; showing scholarships for your saved countries</span>
+                </div>
+                <button onClick={clearFilters} className="text-xs text-text-muted hover:text-navy transition-colors shrink-0">
+                  Clear
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Filter Bar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-8">
