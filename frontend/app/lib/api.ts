@@ -66,13 +66,37 @@ export interface ScholarshipDetail {
   resources: Resource[];
 }
 
+export interface UserRequirementStatus {
+  id: string;
+  user_scholarship_id: string;
+  requirement_type: "document" | "eligibility";
+  requirement_id: string;
+  is_fulfilled: boolean;
+  notes?: string | null;
+  updated_at: string;
+}
+
+export interface ScholarshipDetailForTracker {
+  id: string;
+  name: string;
+  country: string;
+  degree_level: string;
+  funding_type: string;
+  official_url: string | null;
+  last_verified_at: string;
+  nearest_deadline: string | null;
+  documents: ScholarshipDocument[];
+  eligibility: ScholarshipEligibility[];
+}
+
 export interface UserScholarship {
   id: string;
   user_id: string;
   scholarship_id: string;
   status: "interested" | "tracking" | "applied";
   added_at: string;
-  scholarship: ScholarshipListItem;
+  scholarship: ScholarshipDetailForTracker;
+  requirement_statuses: UserRequirementStatus[];
 }
 
 export interface UserProfile {
@@ -191,6 +215,23 @@ export async function updateTrackerStatus(
 
 export async function removeFromTracker(trackerId: string): Promise<void> {
   return authFetch(`/user-scholarships/${trackerId}`, { method: "DELETE" });
+}
+
+export async function toggleRequirementStatus(
+  trackerId: string,
+  requirementId: string,
+  requirementType: "document" | "eligibility",
+  isFulfilled: boolean,
+  notes?: string
+): Promise<UserRequirementStatus> {
+  return authFetch(`/user-scholarships/${trackerId}/requirements/${requirementId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      requirement_type: requirementType,
+      is_fulfilled: isFulfilled,
+      notes: notes ?? null,
+    }),
+  });
 }
 
 // ── Protected: Profile Endpoints ──

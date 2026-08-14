@@ -2,7 +2,7 @@ from datetime import date
 from typing import List, Optional
 from uuid import UUID
 from sqlalchemy import select, and_, or_, func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from app import models, schemas
 
 
@@ -222,6 +222,11 @@ def get_user_tracked_scholarships(db: Session, user_id: UUID) -> List[models.Use
     
     query = (
         db.query(models.UserScholarship, nearest_deadline.label("nearest_deadline"))
+        .options(
+            selectinload(models.UserScholarship.requirement_statuses),
+            selectinload(models.UserScholarship.scholarship).selectinload(models.Scholarship.documents),
+            selectinload(models.UserScholarship.scholarship).selectinload(models.Scholarship.eligibility),
+        )
         .filter(models.UserScholarship.user_id == user_id)
         .order_by(nearest_deadline.asc())
     )
@@ -288,3 +293,76 @@ def remove_user_scholarship(
     db.delete(entry)
     db.commit()
     return True
+
+
+def upsert_user_requirement_status(
+    db: Session,
+    user_scholarship_id: UUID,
+    requirement_id: UUID,
+    user_id: UUID,
+    toggle_data: schemas.UserRequirementToggleRequest,
+) -> Optional[models.UserRequirementStatus]:
+    """
+    Toggle or update the fulfillment status of a scholarship document or eligibility criterion.
+    Verifies that user owns the user_scholarship entry, and that requirement_id belongs to the scholarship.
+    """
+    # 1. Verify user_scholarship belongs to user
+    user_scholarship = db.query(models.UserScholarship).filter(
+        and_(
+            models.UserScholarship.id == user_scholarship_id,
+            models.UserScholarship.user_id == user_id,
+        )
+    ).first()
+    if not user_scholarship:
+        return None
+
+    # 2. Verify requirement_id exists on the associated scholarship
+    if toggle_data.requirement_type == "document":
+        doc = db.query(models.ScholarshipDocument).filter(
+            and_(
+                models.ScholarshipDocument.id == requirement_id,
+                models.ScholarshipDocument.scholarship_id == user_scholarship.scholarship_id,
+            )
+        ).first()
+        if not doc:
+            return None
+    elif toggle_data.requirement_type == "eligibility":
+        elig = db.query(models.ScholarshipEligibility).filter(
+            and_(
+                models.ScholarshipEligibility.id == requirement_id,
+                models.ScholarshipEligibility.scholarship_id == user_scholarship.scholarship_id,
+            )
+        ).first()
+        if not elig:
+            return None
+    else:
+        return None
+
+    # 3. Find existing requirement status or create new one
+    status_entry = db.query(models.UserRequirementStatus).filter(
+        and_(
+            models.UserRequirementStatus.user_scholarship_id == user_scholarship_id,
+            models.UserRequirementStatus.requirement_type == toggle_data.requirement_type,
+            models.UserRequirementStatus.requirement_id == requirement_id,
+        )
+    ).first()
+
+    if not status_entry:
+        is_fulfilled = toggle_data.is_fulfilled if toggle_data.is_fulfilled is not None else False
+        status_entry = models.UserRequirementStatus(
+            user_scholarship_id=user_scholarship_id,
+            requirement_type=toggle_data.requirement_type,
+            requirement_id=requirement_id,
+            is_fulfilled=is_fulfilled,
+            notes=toggle_data.notes,
+        )
+        db.add(status_entry)
+    else:
+        if toggle_data.is_fulfilled is not None:
+            status_entry.is_fulfilled = toggle_data.is_fulfilled
+        if toggle_data.notes is not None:
+            status_entry.notes = toggle_data.notes
+
+    db.commit()
+    db.refresh(status_entry)
+    return status_entry

@@ -117,7 +117,48 @@ class AdminScholarshipUpdate(BaseModel):
     funding_type: Optional[str] = None
     status: Optional[str] = Field(None, pattern="^(pending_review|needs_fix|approved|rejected)$")
     
+# --- Requirement Status Schemas ---
+
+class UserRequirementToggleRequest(BaseModel):
+    requirement_type: str = Field(
+        ...,
+        pattern="^(document|eligibility)$",
+        description="Type of requirement ('document' or 'eligibility')"
+    )
+    is_fulfilled: Optional[bool] = Field(default=None, description="Whether the requirement is fulfilled/completed")
+    notes: Optional[str] = Field(default=None, max_length=1000, description="Optional personal notes")
+
+
+class UserRequirementStatusResponse(BaseModel):
+    id: UUID
+    user_scholarship_id: UUID
+    requirement_type: str
+    requirement_id: UUID
+    is_fulfilled: bool
+    notes: Optional[str] = None
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # --- Tracker (UserScholarship) Schemas ---
+
+class ScholarshipDetailForTracker(BaseModel):
+    id: UUID
+    name: str
+    country: str
+    degree_level: str
+    funding_type: str
+    official_url: Optional[str] = None
+    last_verified_at: datetime
+    nearest_deadline: Optional[date] = None
+    documents: List[ScholarshipDocumentResponse] = []
+    eligibility: List[ScholarshipEligibilityResponse] = []
+
+    class Config:
+        from_attributes = True
+
 
 class UserScholarshipCreate(BaseModel):
     scholarship_id: UUID
@@ -142,7 +183,8 @@ class UserScholarshipResponse(BaseModel):
     scholarship_id: UUID
     status: str
     added_at: datetime
-    scholarship: ScholarshipListResponse
+    scholarship: ScholarshipDetailForTracker
+    requirement_statuses: List[UserRequirementStatusResponse] = []
 
     class Config:
         from_attributes = True

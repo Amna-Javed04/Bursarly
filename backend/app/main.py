@@ -214,6 +214,34 @@ def remove_from_tracker(
         )
 
 
+@app.patch(
+    "/user-scholarships/{id}/requirements/{requirement_id}",
+    response_model=schemas.UserRequirementStatusResponse,
+    tags=["tracker"],
+)
+def toggle_user_requirement_status(
+    id: uuid.UUID,
+    requirement_id: uuid.UUID,
+    toggle_input: schemas.UserRequirementToggleRequest,
+    current_user_id: uuid.UUID = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """Toggle fulfillment status of a scholarship document or eligibility criterion."""
+    status_entry = crud.upsert_user_requirement_status(
+        db,
+        user_scholarship_id=id,
+        requirement_id=requirement_id,
+        user_id=current_user_id,
+        toggle_data=toggle_input,
+    )
+    if not status_entry:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tracker entry or requirement not found.",
+        )
+    return status_entry
+
+
 @app.get("/user-profile/me", response_model=schemas.UserProfileResponse, tags=["profile"])
 def read_my_profile(
     current_user_id: uuid.UUID = Depends(get_current_user_id),

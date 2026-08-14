@@ -6,7 +6,8 @@
  * Features:
  *  - Tracked scholarships sorted by nearest deadline
  *  - Color-shifting countdown bar: green→amber→red as deadline nears
- *  - Document checklist per scholarship (interactive checkboxes stored in localStorage)
+ *  - Requirement tracking: Document checklist & Eligibility self-assessment
+ *  - Readiness progress summary with deadline-urgency color logic
  *  - Status selector (interested / tracking / applied)
  *  - Remove button
  */
@@ -20,9 +21,11 @@ import {
   getMyTrackedScholarships,
   updateTrackerStatus,
   removeFromTracker,
+  toggleRequirementStatus,
   getMyProfile,
   type UserScholarship,
   type UserProfile,
+  type UserRequirementStatus,
 } from "@/app/lib/api";
 import {
   daysUntilDeadline,
@@ -103,72 +106,128 @@ function DeadlineCountdown({ deadlineDate }: { deadlineDate: string }) {
   );
 }
 
-// ── Document Checklist ────────────────────────────────────────
+// ── Requirement Checklist (Documents & Eligibility) ───────────────
 
-const COMMON_DOCS = [
-  "Passport / National ID",
-  "Transcripts (official)",
-  "Proof of English proficiency",
-  "Letters of Recommendation (2–3)",
-  "Statement of Purpose / Personal Statement",
-  "CV / Résumé",
-  "Research Proposal (if applicable)",
-  "Financial documents",
-];
-
-function DocumentChecklist({ scholarshipId, documents }: {
-  scholarshipId: string;
+function RequirementChecklist({
+  trackerId,
+  documents = [],
+  eligibility = [],
+  requirementStatuses = [],
+  onStatusChange,
+}: {
+  trackerId: string;
   documents: Array<{ id: string; document_name: string; is_required: boolean }>;
+  eligibility: Array<{ id: string; criteria_text: string }>;
+  requirementStatuses: UserRequirementStatus[];
+  onStatusChange?: (reqId: string, reqType: "document" | "eligibility", isFulfilled: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const storageKey = `bursarly-docs-${scholarshipId}`;
+  const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({});
 
-  const [checked, setChecked] = useState<Set<string>>(() => {
-    if (typeof window === "undefined") return new Set();
-    try {
-      const stored = localStorage.getItem(storageKey);
-      return stored ? new Set(JSON.parse(stored)) : new Set();
-    } catch { return new Set(); }
+  // Compute fulfilled set from backend statuses
+  const fulfilledSet = new Set<string>();
+  requirementStatuses.forEach((st) => {
+    if (st.is_fulfilled) {
+      fulfilledSet.add(`${st.requirement_type}:${st.requirement_id}`);
+    }
   });
 
-  function toggle(label: string) {
-    setChecked((prev) => {
-      const next = new Set(prev);
-      if (next.has(label)) next.delete(label);
-      else next.add(label);
-      try { localStorage.setItem(storageKey, JSON.stringify([...next])); } catch { }
-      return next;
-    });
+  const totalReqs = documents.length + eligibility.length;
+  let metCount = 0;
+
+  documents.forEach((d) => {
+    if (fulfilledSet.has(`document:${d.id}`)) metCount++;
+  });
+  eligibility.forEach((e) => {
+    if (fulfilledSet.has(`eligibility:${e.id}`)) metCount++;
+  });
+
+  const readinessPct = totalReqs > 0 ? Math.round((metCount / totalReqs) * 100) : 100;
+
+  // Visual color cue based on deadline-urgency color logic (green/amber/red) for overall readiness
+  let readinessColor: string;
+  let badgeBg: string;
+  let badgeBorder: string;
+
+  if (readinessPct >= 80) {
+    readinessColor = "#4CAF7D"; // Green
+    badgeBg = "bg-deadline-safe/10 text-deadline-safe";
+    badgeBorder = "border-deadline-safe/20";
+  } else if (readinessPct >= 40) {
+    readinessColor = "#E3A008"; // Amber
+    badgeBg = "bg-deadline-warning/10 text-deadline-warning";
+    badgeBorder = "border-deadline-warning/20";
+  } else {
+    readinessColor = "#E4572E"; // Red
+    badgeBg = "bg-deadline-urgent/10 text-deadline-urgent";
+    badgeBorder = "border-deadline-urgent/20";
   }
 
-  // Merge scholarship-specific docs with common docs (deduplicate by name)
-  const specificDocs = documents.map((d) => ({ name: d.document_name, required: d.is_required }));
-  const specificNames = new Set(specificDocs.map((d) => d.name.toLowerCase()));
-  const extraDocs = COMMON_DOCS.filter((d) => !specificNames.has(d.toLowerCase())).map((n) => ({ name: n, required: false }));
-  const allDocs = [...specificDocs, ...extraDocs];
+  const summaryText = totalReqs === 0
+    ? "No requirements listed"
+    : metCount === totalReqs
+    ? `${metCount} of ${totalReqs} requirements met (Ready to apply!)`
+    : `${metCount} of ${totalReqs} requirements met`;
 
-  const completedCount = allDocs.filter((d) => checked.has(d.name)).length;
+  async function handleToggle(reqId: string, reqType: "document" | "eligibility", currentlyFulfilled: boolean) {
+    const key = `${reqType}:${reqId}`;
+    if (loadingMap[key]) return;
+
+    setLoadingMap((prev) => ({ ...prev, [key]: true }));
+    const nextState = !currentlyFulfilled;
+
+    try {
+      await toggleRequirementStatus(trackerId, reqId, reqType, nextState);
+      onStatusChange?.(reqId, reqType, nextState);
+    } catch {
+      // Handle error gracefully
+    } finally {
+      setLoadingMap((prev) => ({ ...prev, [key]: false }));
+    }
+  }
 
   return (
-    <div className="mt-4">
+    <div className="mt-4 pt-3 border-t border-border/40">
+      {/* Readiness & Progress Summary Header */}
+      <div className="space-y-1.5 mb-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-semibold" style={{ color: readinessColor }}>
+            {summaryText}
+          </span>
+          <span className="text-xs font-bold" style={{ color: readinessColor }}>
+            {readinessPct}%
+          </span>
+        </div>
+
+        {/* Readiness Bar using deadline-urgency color logic */}
+        <div className="relative h-2 rounded-full bg-border overflow-hidden">
+          <motion.div
+            className="absolute left-0 top-0 h-full rounded-full"
+            style={{ backgroundColor: readinessColor }}
+            initial={{ width: 0 }}
+            animate={{ width: `${readinessPct}%` }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+          />
+        </div>
+      </div>
+
+      {/* Accordion toggle button */}
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 text-xs font-semibold text-navy hover:text-teal transition-colors"
+        className="flex items-center justify-between w-full py-1 text-xs font-semibold text-navy hover:text-teal transition-colors"
         aria-expanded={open}
       >
-        <svg className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-90" : ""}`}
-          fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
-        Documents ({completedCount}/{allDocs.length} ready)
-        {/* Mini progress */}
-        <div className="flex-1 h-1 rounded-full bg-border overflow-hidden max-w-[80px]">
-          <div
-            className="h-full rounded-full bg-teal transition-all duration-300"
-            style={{ width: `${allDocs.length ? (completedCount / allDocs.length) * 100 : 0}%` }}
-          />
-        </div>
+        <span className="flex items-center gap-1.5">
+          <svg className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-90" : ""}`}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+          Requirements Checklist & Self-Assessment
+        </span>
+        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${badgeBg} ${badgeBorder}`}>
+          {metCount}/{totalReqs} met
+        </span>
       </button>
 
       <AnimatePresence>
@@ -178,31 +237,111 @@ function DocumentChecklist({ scholarshipId, documents }: {
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
-            className="mt-3 space-y-2"
+            className="mt-3 space-y-4 text-xs"
           >
-            {allDocs.map((doc) => (
-              <label
-                key={doc.name}
-                className="flex items-center gap-3 cursor-pointer group"
-              >
-                <div
-                  onClick={() => toggle(doc.name)}
-                  className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all cursor-pointer
-                    ${checked.has(doc.name) ? "bg-teal border-teal" : "border-border group-hover:border-teal/50"}`}
-                >
-                  {checked.has(doc.name) && (
-                    <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            {/* 1. Application Documents Section (Completed Checkboxes) */}
+            {documents.length > 0 && (
+              <div>
+                <div className="mb-2">
+                  <h4 className="font-bold text-navy flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-teal" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                  )}
+                    Application Documents
+                  </h4>
+                  <p className="text-[11px] text-text-muted">
+                    Document completion list — tick items as completed when prepared or submitted.
+                  </p>
                 </div>
-                <span className={`text-xs transition-colors ${checked.has(doc.name) ? "line-through text-text-muted" : "text-text-secondary group-hover:text-navy"}`}>
-                  {doc.name}
-                  {doc.required && <span className="ml-1 text-deadline-urgent">*</span>}
-                </span>
-              </label>
-            ))}
-            <p className="text-xs text-text-muted pt-1">* Required by scholarship</p>
+                <div className="space-y-2 pl-1">
+                  {documents.map((doc) => {
+                    const isFulfilled = fulfilledSet.has(`document:${doc.id}`);
+                    const isPending = loadingMap[`document:${doc.id}`];
+                    return (
+                      <label key={doc.id} className="flex items-start gap-2.5 cursor-pointer group">
+                        <div
+                          onClick={() => handleToggle(doc.id, "document", isFulfilled)}
+                          className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all cursor-pointer
+                            ${isFulfilled ? "bg-teal border-teal" : "border-border group-hover:border-teal/50"}
+                            ${isPending ? "opacity-50" : ""}`}
+                        >
+                          {isFulfilled && (
+                            <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <span className={`transition-colors ${isFulfilled ? "line-through text-text-muted" : "text-navy font-medium group-hover:text-teal-dark"}`}>
+                            {doc.document_name}
+                          </span>
+                          {doc.is_required && (
+                            <span className="ml-1.5 px-1.5 py-0.2 rounded text-[10px] font-semibold bg-deadline-urgent/10 text-deadline-urgent">
+                              Required
+                            </span>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 2. Eligibility Criteria Section (Self-Assessment Checkboxes) */}
+            {eligibility.length > 0 && (
+              <div className="pt-2 border-t border-border/30">
+                <div className="mb-2">
+                  <h4 className="font-bold text-navy flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-deadline-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Eligibility Criteria (Self-Assessment)
+                  </h4>
+                  <p className="text-[11px] text-text-muted">
+                    Self-assessment tracker — check off criteria you meet. <span className="italic">*Bursarly tracks your self-assessment, it does not verify eligibility.*</span>
+                  </p>
+                </div>
+                <div className="space-y-2 pl-1">
+                  {eligibility.map((elig) => {
+                    const isFulfilled = fulfilledSet.has(`eligibility:${elig.id}`);
+                    const isPending = loadingMap[`eligibility:${elig.id}`];
+                    return (
+                      <label key={elig.id} className="flex items-start gap-2.5 cursor-pointer group">
+                        <div
+                          onClick={() => handleToggle(elig.id, "eligibility", isFulfilled)}
+                          className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all cursor-pointer
+                            ${isFulfilled ? "bg-deadline-warning border-deadline-warning" : "border-border group-hover:border-deadline-warning/50"}
+                            ${isPending ? "opacity-50" : ""}`}
+                        >
+                          {isFulfilled && (
+                            <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <span className={`transition-colors ${isFulfilled ? "text-navy font-semibold" : "text-text-secondary group-hover:text-navy"}`}>
+                            {elig.criteria_text}
+                          </span>
+                          {isFulfilled && (
+                            <span className="ml-2 inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-deadline-safe/10 text-deadline-safe">
+                              I meet this criterion ✓
+                            </span>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {documents.length === 0 && eligibility.length === 0 && (
+              <p className="text-text-muted italic py-1">No documents or eligibility criteria specified for this scholarship.</p>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -210,7 +349,7 @@ function DocumentChecklist({ scholarshipId, documents }: {
   );
 }
 
-// ── Status Badge ──────────────────────────────────────────────
+// ── Status Selector ───────────────────────────────────────────
 
 const STATUS_OPTIONS = [
   { value: "interested", label: "Interested", color: "bg-navy/10 text-navy" },
@@ -266,10 +405,12 @@ function StatusSelector({
 function TrackerCard({
   item,
   onStatusChange,
+  onRequirementToggle,
   onRemove,
 }: {
   item: UserScholarship;
   onStatusChange: (id: string, s: "interested" | "tracking" | "applied") => void;
+  onRequirementToggle: (trackerId: string, reqId: string, reqType: "document" | "eligibility", isFulfilled: boolean) => void;
   onRemove: (id: string) => void;
 }) {
   const [removing, setRemoving] = useState(false);
@@ -295,71 +436,76 @@ function TrackerCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.97 }}
       transition={{ duration: 0.3 }}
-      className="bg-white rounded-2xl border border-border/60 shadow-[var(--shadow-card)] p-5 sm:p-6"
+      className="bg-white rounded-2xl border border-border/60 shadow-[var(--shadow-card)] p-5 sm:p-6 flex flex-col justify-between"
     >
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">{getCountryFlag(item.scholarship.country)}</span>
-            <span className="text-xs text-text-muted">{item.scholarship.country}</span>
+      <div>
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg">{getCountryFlag(item.scholarship.country)}</span>
+              <span className="text-xs text-text-muted">{item.scholarship.country}</span>
+            </div>
+            <Link
+              href={`/scholarship/${item.scholarship.id}`}
+              className="text-base font-semibold text-navy hover:text-teal-dark transition-colors line-clamp-2"
+            >
+              {item.scholarship.name}
+            </Link>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              <span className="px-2 py-0.5 rounded-md text-xs bg-teal/8 text-teal-dark font-medium">
+                {item.scholarship.degree_level}
+              </span>
+              <span className="px-2 py-0.5 rounded-md text-xs bg-navy/5 text-navy/70">
+                {item.scholarship.funding_type.replace(/_/g, " ")}
+              </span>
+            </div>
           </div>
-          <Link
-            href={`/scholarship/${item.scholarship.id}`}
-            className="text-base font-semibold text-navy hover:text-teal-dark transition-colors line-clamp-2"
+
+          {/* Remove */}
+          <button
+            type="button"
+            onClick={handleRemove}
+            disabled={removing}
+            aria-label="Remove from tracker"
+            className="p-1.5 rounded-lg text-text-muted hover:text-deadline-urgent hover:bg-deadline-urgent/5 transition-colors disabled:opacity-50 shrink-0"
           >
-            {item.scholarship.name}
-          </Link>
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            <span className="px-2 py-0.5 rounded-md text-xs bg-teal/8 text-teal-dark font-medium">
-              {item.scholarship.degree_level}
-            </span>
-            <span className="px-2 py-0.5 rounded-md text-xs bg-navy/5 text-navy/70">
-              {item.scholarship.funding_type.replace(/_/g, " ")}
-            </span>
-          </div>
+            {removing ? (
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            )}
+          </button>
         </div>
 
-        {/* Remove */}
-        <button
-          type="button"
-          onClick={handleRemove}
-          disabled={removing}
-          aria-label="Remove from tracker"
-          className="p-1.5 rounded-lg text-text-muted hover:text-deadline-urgent hover:bg-deadline-urgent/5 transition-colors disabled:opacity-50 shrink-0"
-        >
-          {removing ? (
-            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-          ) : (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          )}
-        </button>
+        {/* Deadline countdown */}
+        {nearestDeadline ? (
+          <DeadlineCountdown deadlineDate={nearestDeadline} />
+        ) : (
+          <p className="text-xs text-text-muted mt-3">No upcoming deadline</p>
+        )}
+
+        {/* Status selector */}
+        <StatusSelector
+          trackerId={item.id}
+          current={item.status}
+          onChange={(s) => onStatusChange(item.id, s)}
+        />
       </div>
 
-      {/* Deadline countdown */}
-      {nearestDeadline ? (
-        <DeadlineCountdown deadlineDate={nearestDeadline} />
-      ) : (
-        <p className="text-xs text-text-muted mt-3">No upcoming deadline</p>
-      )}
-
-      {/* Status selector */}
-      <StatusSelector
+      {/* Requirement & Self-Assessment Checklist */}
+      <RequirementChecklist
         trackerId={item.id}
-        current={item.status}
-        onChange={(s) => onStatusChange(item.id, s)}
-      />
-
-      {/* Document checklist */}
-      <DocumentChecklist
-        scholarshipId={item.scholarship.id}
-        documents={[]}
+        documents={item.scholarship.documents || []}
+        eligibility={item.scholarship.eligibility || []}
+        requirementStatuses={item.requirement_statuses || []}
+        onStatusChange={(reqId, reqType, isFulfilled) => onRequirementToggle(item.id, reqId, reqType, isFulfilled)}
       />
     </motion.div>
   );
@@ -396,6 +542,42 @@ function DashboardContent() {
   function handleStatusChange(id: string, newStatus: "interested" | "tracking" | "applied") {
     setTracked((prev) =>
       prev.map((t) => t.id === id ? { ...t, status: newStatus } : t)
+    );
+  }
+
+  function handleRequirementToggle(
+    trackerId: string,
+    reqId: string,
+    reqType: "document" | "eligibility",
+    isFulfilled: boolean
+  ) {
+    setTracked((prev) =>
+      prev.map((t) => {
+        if (t.id !== trackerId) return t;
+        const currentStatuses = t.requirement_statuses || [];
+        const existingIdx = currentStatuses.findIndex(
+          (s) => s.requirement_type === reqType && s.requirement_id === reqId
+        );
+        let updatedStatuses: UserRequirementStatus[];
+        if (existingIdx >= 0) {
+          updatedStatuses = currentStatuses.map((s, idx) =>
+            idx === existingIdx ? { ...s, is_fulfilled: isFulfilled, updated_at: new Date().toISOString() } : s
+          );
+        } else {
+          updatedStatuses = [
+            ...currentStatuses,
+            {
+              id: `${reqType}-${reqId}`,
+              user_scholarship_id: trackerId,
+              requirement_type: reqType,
+              requirement_id: reqId,
+              is_fulfilled: isFulfilled,
+              updated_at: new Date().toISOString(),
+            },
+          ];
+        }
+        return { ...t, requirement_statuses: updatedStatuses };
+      })
     );
   }
 
@@ -510,7 +692,7 @@ function DashboardContent() {
             bg-gradient-to-br from-navy/5 to-teal/5 border border-border mb-5">
             <svg className="w-8 h-8 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2}
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
           </div>
           <h2 className="text-lg font-bold text-navy mb-2">No scholarships tracked yet</h2>
@@ -535,6 +717,7 @@ function DashboardContent() {
                 key={item.id}
                 item={item}
                 onStatusChange={handleStatusChange}
+                onRequirementToggle={handleRequirementToggle}
                 onRemove={handleRemove}
               />
             ))}

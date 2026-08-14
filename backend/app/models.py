@@ -177,9 +177,29 @@ class UserScholarship(Base):
     user = relationship("User", back_populates="tracked_scholarships")
     scholarship = relationship("Scholarship", back_populates="user_scholarships")
     reminders = relationship("ReminderLog", back_populates="user_scholarship", cascade="all, delete-orphan")
+    requirement_statuses = relationship("UserRequirementStatus", back_populates="user_scholarship", cascade="all, delete-orphan")
 
     __table_args__ = (
         UniqueConstraint("user_id", "scholarship_id", name="unique_user_scholarship"),
+    )
+
+
+class UserRequirementStatus(Base):
+    __tablename__ = "user_requirement_status"
+
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
+    user_scholarship_id = Column(GUID, ForeignKey("user_scholarships.id", ondelete="CASCADE"), nullable=False, index=True)
+    requirement_type = Column(String(50), nullable=False)  # 'document' | 'eligibility'
+    requirement_id = Column(GUID, nullable=False)
+    is_fulfilled = Column(Boolean, default=False, nullable=False)
+    notes = Column(Text, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relationships
+    user_scholarship = relationship("UserScholarship", back_populates="requirement_statuses")
+
+    __table_args__ = (
+        UniqueConstraint("user_scholarship_id", "requirement_type", "requirement_id", name="unique_user_requirement"),
     )
 
 
