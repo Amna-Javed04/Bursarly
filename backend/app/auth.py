@@ -135,3 +135,19 @@ def get_admin_user(
         return user_id
     finally:
         db.close()
+
+
+def get_optional_user_id(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+) -> Optional[uuid.UUID]:
+    """
+    FastAPI dependency: resolves the authenticated user's UUID if credentials present,
+    or returns None if request is anonymous.
+    """
+    if not credentials and not x_user_id:
+        return None
+    try:
+        return get_current_user_id(credentials, x_user_id)
+    except HTTPException:
+        return None

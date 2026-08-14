@@ -213,3 +213,12 @@ class ReminderLog(Base):
 
     # Relationships
     user_scholarship = relationship("UserScholarship", back_populates="reminders")
+
+
+class UnmatchedScholarshipQuery(Base):
+    __tablename__ = "unmatched_scholarship_queries"
+
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
+    query_text = Column(Text, nullable=False)
+    asked_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    resolved = Column(Boolean, default=False, nullable=False)

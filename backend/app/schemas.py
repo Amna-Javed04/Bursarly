@@ -190,6 +190,32 @@ class UserScholarshipResponse(BaseModel):
         from_attributes = True
 
 
+# --- Chatbot Schemas ---
+
+class ChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=2000, description="User question or message for chatbot assistant")
+    scholarship_id: Optional[UUID] = Field(default=None, description="Optional scholarship ID context when chatting from detail page")
+
+
+class ChatResponse(BaseModel):
+    reply: str
+    grounded: bool
+    scholarship_id: Optional[UUID] = None
+    scholarship_name: Optional[str] = None
+    unmatched_query_logged: bool = False
+    disclaimer_added: bool = False
+
+
+class UnmatchedQueryResponse(BaseModel):
+    id: UUID
+    query_text: str
+    asked_at: datetime
+    resolved: bool
+
+    class Config:
+        from_attributes = True
+
+
 # --- Error Schemas ---
 
 class ErrorDetail(BaseModel):

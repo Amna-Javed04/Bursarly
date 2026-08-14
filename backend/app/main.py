@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import engine, get_db, Base
 from app import crud, models, schemas
-from app.auth import get_current_user_id, get_admin_user
+from app.auth import get_current_user_id, get_admin_user, get_optional_user_id
+from app.services import chatbot
 
 # ── Setup ─────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO)
@@ -299,3 +300,38 @@ def update_scholarship_admin(
     db.commit()
     db.refresh(scholarship)
     return scholarship
+
+
+# ── Chatbot Endpoints ──────────────────────────────────────────
+
+def get_chat_rate_limit_key(request: Request) -> str:
+    """Returns key based on authorization token/header or IP address."""
+    auth_header = request.headers.get("authorization") or request.headers.get("x-user-id")
+    if auth_header:
+        return f"user:{auth_header}"
+    return f"ip:{get_remote_address(request)}"
+
+
+@app.post("/chat", response_model=schemas.ChatResponse, tags=["chat"])
+@limiter.limit(settings.CHAT_ANONYMOUS_RATE_LIMIT, key_func=get_chat_rate_limit_key)
+def chat_with_assistant(
+    request: Request,
+    chat_input: schemas.ChatRequest,
+    current_user_id: Optional[uuid.UUID] = Depends(get_optional_user_id),
+    db: Session = Depends(get_db),
+):
+    """
+    Chatbot endpoint providing grounded responses for scholarships or app usage,
+    with prompt injection defense, rate limiting, and logging of unmatched queries.
+    Works for both logged-in and anonymous users.
+    """
+    return chatbot.process_chat_message(db, chat_input)
+
+
+@app.get("/admin/unmatched-queries", response_model=List[schemas.UnmatchedQueryResponse], tags=["admin"])
+def get_unmatched_queries(
+    admin_id: uuid.UUID = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Admin only: list unmatched user queries to inform future scholarship additions."""
+    return db.query(models.UnmatchedScholarshipQuery).order_by(models.UnmatchedScholarshipQuery.asked_at.desc()).all()

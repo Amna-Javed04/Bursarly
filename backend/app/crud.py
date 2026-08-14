@@ -366,3 +366,100 @@ def upsert_user_requirement_status(
     db.commit()
     db.refresh(status_entry)
     return status_entry
+
+
+# --- Chatbot CRUD Helpers ---
+
+def get_approved_scholarship_with_details(
+    db: Session, scholarship_id: UUID
+) -> Optional[models.Scholarship]:
+    """
+    Fetch an approved scholarship by ID with deadlines, documents, and eligibility pre-loaded.
+    """
+    scholarship = (
+        db.query(models.Scholarship)
+        .options(
+            selectinload(models.Scholarship.deadlines),
+            selectinload(models.Scholarship.documents),
+            selectinload(models.Scholarship.eligibility),
+        )
+        .filter(
+            and_(
+                models.Scholarship.id == scholarship_id,
+                models.Scholarship.status == "approved",
+            )
+        )
+        .first()
+    )
+    if scholarship:
+        scholarship.nearest_deadline = (
+            db.query(models.ScholarshipDeadline.deadline_date)
+            .filter(
+                and_(
+                    models.ScholarshipDeadline.scholarship_id == scholarship.id,
+                    models.ScholarshipDeadline.deadline_date >= date.today(),
+                )
+            )
+            .order_by(models.ScholarshipDeadline.deadline_date.asc())
+            .limit(1)
+            .scalar()
+        )
+    return scholarship
+
+
+def find_matching_approved_scholarship(
+    db: Session, message: str
+) -> Optional[models.Scholarship]:
+    """
+    Searches for an approved scholarship if the user's message mentions a scholarship name or keyword.
+    """
+    approved_scholarships = (
+        db.query(models.Scholarship)
+        .options(
+            selectinload(models.Scholarship.deadlines),
+            selectinload(models.Scholarship.documents),
+            selectinload(models.Scholarship.eligibility),
+        )
+        .filter(models.Scholarship.status == "approved")
+        .all()
+    )
+
+    msg_lower = message.lower()
+    for sch in approved_scholarships:
+        name_lower = sch.name.lower()
+        # Check direct substring or key terms
+        key_terms = [w for w in name_lower.split() if len(w) >= 3 and w not in ["scholarship", "program", "for", "and", "the", "international"]]
+        if name_lower in msg_lower or any(term in msg_lower for term in key_terms):
+            sch.nearest_deadline = (
+                db.query(models.ScholarshipDeadline.deadline_date)
+                .filter(
+                    and_(
+                        models.ScholarshipDeadline.scholarship_id == sch.id,
+                        models.ScholarshipDeadline.deadline_date >= date.today(),
+                    )
+                )
+                .order_by(models.ScholarshipDeadline.deadline_date.asc())
+                .limit(1)
+                .scalar()
+            )
+            return sch
+
+    return None
+
+
+def log_unmatched_scholarship_query(
+    db: Session, query_text: str
+) -> models.UnmatchedScholarshipQuery:
+    """
+    Logs a user query about an unmatched scholarship into unmatched_scholarship_queries.
+    """
+    from datetime import datetime
+    entry = models.UnmatchedScholarshipQuery(
+        query_text=query_text,
+        asked_at=datetime.utcnow(),
+        resolved=False,
+    )
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    return entry

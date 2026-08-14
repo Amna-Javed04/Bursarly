@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     AUTH_RATE_LIMIT: str = "10/minute"
     LOGIN_RATE_LIMIT: str = "5/minute"
 
+    # Chatbot Settings & Rate Limiting
+    CHAT_ANONYMOUS_RATE_LIMIT: str = "5/minute"
+    CHAT_AUTH_RATE_LIMIT: str = "20/minute"
+
+    # LLM API Keys (OpenAI or Gemini)
+    OPENAI_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
