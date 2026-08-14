@@ -1,10 +1,10 @@
 import { MetadataRoute } from 'next'
-import { getScholarships } from '@/app/lib/api'
+import { getScholarships, ScholarshipListItem } from '@/app/lib/api'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://bursarly.com'
 
-  let scholarships = []
+  let scholarships: ScholarshipListItem[] = []
   try {
     scholarships = await getScholarships()
   } catch (err) {

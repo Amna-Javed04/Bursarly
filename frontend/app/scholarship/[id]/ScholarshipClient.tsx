@@ -50,6 +50,33 @@ export default function ScholarshipClient({ initialData }: { initialData: Schola
   const [trackerState, setTrackerState] = useState<TrackerState>("idle");
   const [trackerError, setTrackerError] = useState("");
 
+  // Proactive chat prompt state
+  const [showProactivePrompt, setShowProactivePrompt] = useState(false);
+  const [promptDismissed, setPromptDismissed] = useState(false);
+
+  useEffect(() => {
+    // Show proactive prompt after 3.5 seconds if not dismissed
+    const timer = setTimeout(() => {
+      if (!promptDismissed) {
+        setShowProactivePrompt(true);
+      }
+    }, 3500);
+
+    return () => clearTimeout(timer);
+  }, [promptDismissed]);
+
+  const triggerProactiveChat = () => {
+    setShowProactivePrompt(false);
+    window.dispatchEvent(
+      new CustomEvent("open-bursarly-chat", {
+        detail: {
+          scholarshipId: scholarship.id,
+          scholarshipName: scholarship.name,
+        },
+      })
+    );
+  };
+
   async function handleAddToTracker() {
     // Not logged in → redirect to signup with return path
     if (!user) {
@@ -294,6 +321,59 @@ export default function ScholarshipClient({ initialData }: { initialData: Schola
             </AnimatePresence>
           </motion.div>
         )}
+
+        {/* Proactive Contextual Chat Nudge */}
+        <AnimatePresence>
+          {showProactivePrompt && (
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.9 }}
+              className="fixed bottom-20 right-6 z-40 bg-[#1F3864] text-white p-4 rounded-2xl shadow-2xl border border-[#2CA6A4]/40 max-w-xs sm:max-w-sm flex items-start gap-3"
+            >
+              <div className="w-8 h-8 rounded-full bg-[#2CA6A4]/20 border border-[#2CA6A4]/50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-sm">✨</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-[#F4F1EA] mb-1">
+                  Want help understanding {scholarship.name}?
+                </p>
+                <p className="text-[11px] text-teal-200/90 leading-tight mb-2.5">
+                  Ask Bursarly AI about deadlines, document requirements, or eligibility!
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={triggerProactiveChat}
+                    className="bg-[#2CA6A4] hover:bg-teal-dark text-white text-xs px-3 py-1.5 rounded-lg font-medium shadow-sm transition-colors"
+                  >
+                    Ask Assistant
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowProactivePrompt(false);
+                      setPromptDismissed(true);
+                    }}
+                    className="text-xs text-slate-300 hover:text-white px-2 py-1 transition-colors"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowProactivePrompt(false);
+                  setPromptDismissed(true);
+                }}
+                className="text-slate-400 hover:text-white p-1 rounded-md"
+                aria-label="Dismiss prompt"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </PageTransition>
   );

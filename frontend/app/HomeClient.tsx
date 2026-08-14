@@ -133,7 +133,13 @@ export default function HomePage() {
                 </svg>
                 Browse Scholarships
               </Link>
-              <span className="text-xs text-text-muted hidden sm:inline">No sign-up required</span>
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent("open-bursarly-chat"))}
+                className="inline-flex items-center gap-2 px-5 py-3 bg-teal/10 hover:bg-teal/20 text-[#1F3864] font-semibold text-sm rounded-xl border border-[#2CA6A4]/30 transition-all duration-300 active:scale-[0.98]"
+                id="cta-[#2CA6A4]-chat"
+              >
+                <span className="text-teal font-bold text-base">✨</span> Ask Bursarly AI
+              </button>
             </motion.div>
           </div>
         </div>

@@ -262,3 +262,40 @@ export async function updateScholarshipAdmin(
     body: JSON.stringify(data),
   });
 }
+
+// ── Chatbot API ──
+
+export interface ChatRequest {
+  message: string;
+  scholarship_id?: string | null;
+}
+
+export interface ChatResponse {
+  reply: string;
+  grounded: boolean;
+  scholarship_id?: string | null;
+  scholarship_name?: string | null;
+  unmatched_query_logged: boolean;
+  disclaimer_added: boolean;
+}
+
+export async function sendChatMessage(data: ChatRequest): Promise<ChatResponse> {
+  const session = await supabase.auth.getSession();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (session?.data?.session?.access_token) {
+    headers["Authorization"] = `Bearer ${session.data.session.access_token}`;
+  }
+
+  const res = await fetch(`${API_BASE}/chat`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error?.message || errorData.detail || "Failed to send chat message.");
+  }
+
+  return res.json();
+}
