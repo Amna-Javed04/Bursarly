@@ -1,24 +1,5 @@
 {
-  "scrape_start_utc": "2026-08-13T17:43:19.070517+00:00",
-  "pages": [
-    {
-      "url": "https://www.studyinkorea.go.kr/ko/plan/scholarship.do",
-      "file": "gks_main_raw.html",
-      "method": "requests",
-      "http_status": 200,
-      "file_size_bytes": 128622,
-      "timestamp_utc": "2026-08-13T17:43:23.354937+00:00",
-      "notes": ""
-    },
-    {
-      "url": "https://www.studyinkorea.go.kr/ko/plan/scholarship.do",
-      "file": "gks_main_text.txt",
-      "method": "requests+bs4",
-      "http_status": 200,
-      "file_size_bytes": 25325,
-      "timestamp_utc": "2026-08-13T17:43:24.713626+00:00",
-      "notes": "cleaned text"
-    }
-  ],
-  "scrape_end_utc": "2026-08-13T17:43:25.384466+00:00"
+  "scrape_start_utc": "2026-08-21T10:51:14.712619+00:00",
+  "pages": [],
+  "scrape_end_utc": "2026-08-21T10:52:02.795865+00:00"
 }
