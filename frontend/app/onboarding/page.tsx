@@ -217,7 +217,7 @@ function OnboardingWizard() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 14l6.16-3.422A12.083 12.083 0 0121 21H3a12.083 12.083 0 012.84-10.422L12 14z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-navy">Let's personalise Bursarly</h1>
+          <h1 className="text-2xl font-bold text-navy">Let&apos;s personalise Bursarly</h1>
           <p className="text-text-secondary text-sm mt-1">4 quick questions to surface the best scholarships for you</p>
         </motion.div>
 

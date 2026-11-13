@@ -119,7 +119,7 @@ export default function SignupPage() {
             </div>
             <h1 className="text-2xl font-bold text-navy mb-3">Check your email</h1>
             <p className="text-text-secondary mb-2">
-              We've sent a verification link to <strong className="text-navy">{form.email}</strong>.
+              We&apos;ve sent a verification link to <strong className="text-navy">{form.email}</strong>.
             </p>
             <p className="text-text-secondary text-sm mb-8">
               Click the link to activate your account. The link expires in 24 hours.

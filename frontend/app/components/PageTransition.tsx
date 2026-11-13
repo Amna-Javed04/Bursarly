@@ -8,30 +8,27 @@ interface PageTransitionProps {
 }
 
 const variants = {
-  hidden: { opacity: 0, y: 12 },
+  hidden: { opacity: 0, y: 14, filter: "blur(8px)" },
   visible: {
     opacity: 1,
     y: 0,
+    filter: "blur(0px)",
     transition: {
-      duration: 0.4,
-      ease: [0.25, 0.46, 0.45, 0.94] as const,
+      duration: 0.7,
+      ease: [0.16, 1, 0.3, 1] as const,
     },
   },
   exit: {
     opacity: 0,
-    y: -8,
-    transition: { duration: 0.2 },
+    y: -10,
+    filter: "blur(6px)",
+    transition: { duration: 0.25 },
   },
 };
 
 export default function PageTransition({ children }: PageTransitionProps) {
   return (
-    <motion.div
-      initial="hidden"
-      animate="visible"
-      exit="exit"
-      variants={variants}
-    >
+    <motion.div initial="hidden" animate="visible" exit="exit" variants={variants}>
       {children}
     </motion.div>
   );

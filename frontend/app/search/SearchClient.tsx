@@ -20,13 +20,13 @@ function SearchResults() {
   const [searched, setSearched] = useState(false);
 
   useEffect(() => {
-    if (!query.trim()) {
-      setResults([]);
-      setSearched(false);
-      return;
-    }
-
     const doSearch = async () => {
+      if (!query.trim()) {
+        setResults([]);
+        setSearched(false);
+        return;
+      }
+
       setLoading(true);
       setError(null);
       try {

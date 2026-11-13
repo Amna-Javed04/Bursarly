@@ -38,7 +38,7 @@ export default function VerifyErrorPage() {
           This email verification link has expired or has already been used.
         </p>
         <p className="text-text-secondary text-sm mb-8">
-          Sign in below and we'll prompt you to resend a fresh verification email.
+          Sign in below and we&apos;ll prompt you to resend a fresh verification email.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">

@@ -20,6 +20,7 @@ export default function SearchBar({
 }: SearchBarProps) {
   const router = useRouter();
   const [query, setQuery] = useState(defaultQuery);
+  const [focused, setFocused] = useState(false);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -30,29 +31,36 @@ export default function SearchBar({
   };
 
   const isHero = variant === "hero";
+  const canSubmit = query.trim().length > 0;
 
   return (
     <motion.form
       onSubmit={handleSubmit}
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.2, duration: 0.4 }}
+      transition={{ delay: 0.15, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
       className={`relative w-full ${isHero ? "max-w-xl" : "max-w-md"}`}
       id="search-form"
     >
+      {/* soft outer glow that blooms on focus */}
       <div
-        className={`relative flex items-center bg-surface border rounded-xl
-          shadow-[var(--shadow-sm)] focus-within:shadow-[var(--shadow-md)]
-          focus-within:border-teal/40 transition-all duration-300
+        aria-hidden="true"
+        className={`pointer-events-none absolute -inset-[3px] rounded-[18px] bg-gradient-to-r from-teal/50 via-cobalt/40 to-gold/40 blur-lg transition-opacity duration-500
+          ${focused ? "opacity-70" : "opacity-0"}`}
+      />
+
+      <div
+        className={`relative flex items-center rounded-2xl transition-all duration-500
           ${isHero
-            ? "border-border h-14 text-base"
-            : "border-border/70 h-11 text-sm"
-          }`}
+            ? "h-[60px] bg-white/80 backdrop-blur-xl border border-white/70 shadow-[0_18px_44px_-30px_rgba(59,37,64,0.5)] hover:border-navy/15"
+            : "h-11 bg-surface border border-border/70 hover:border-border"
+          }
+          ${isHero && focused ? "bg-white border-navy/20" : ""}
+          ${focused ? "shadow-[0_20px_60px_-24px_rgba(194,101,139,0.45)]" : ""}`}
       >
-        {/* Search icon */}
-        <div className={`flex-shrink-0 text-text-muted ${isHero ? "pl-4" : "pl-3"}`}>
+        <div className={`flex-shrink-0 transition-colors duration-300 ${focused ? "text-teal-dark" : "text-text-muted"} ${isHero ? "pl-5" : "pl-3"}`}>
           <svg
-            className={`${isHero ? "w-5 h-5" : "w-4 h-4"}`}
+            className={isHero ? "w-[18px] h-[18px]" : "w-4 h-4"}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -70,23 +78,43 @@ export default function SearchBar({
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           placeholder={placeholder}
-          className={`flex-1 bg-transparent border-none outline-none text-text-primary
-            placeholder:text-text-muted/70 font-medium
-            ${isHero ? "px-3 text-base" : "px-2.5 text-sm"}`}
+          className={`flex-1 bg-transparent border-none outline-none font-medium
+            ${isHero
+              ? "px-3 text-[15px] text-navy placeholder:text-text-muted"
+              : "px-2.5 text-sm text-text-primary placeholder:text-text-muted/70"
+            }`}
           id="search-input"
         />
 
         <button
           type="submit"
-          disabled={!query.trim()}
-          className={`flex-shrink-0 bg-navy text-white font-medium rounded-lg
-            hover:bg-navy-light disabled:opacity-40 disabled:cursor-not-allowed
-            transition-all duration-200 active:scale-[0.97]
-            ${isHero ? "mr-1.5 px-5 py-2 text-sm" : "mr-1 px-3.5 py-1.5 text-xs"}`}
+          disabled={!canSubmit}
+          className={`group flex-shrink-0 inline-flex items-center gap-1.5 font-semibold rounded-xl
+            transition-all duration-300 active:scale-[0.97] disabled:cursor-not-allowed
+            ${isHero
+              ? `mr-2 px-4 py-2.5 text-[13px] ${canSubmit
+                  ? "bg-gradient-to-r from-[#C2658B] to-[#8E7BD6] text-white shadow-[0_10px_26px_-14px_rgba(194,101,139,0.8)]"
+                  : "bg-navy/[0.08] text-text-muted"
+                }`
+              : `mr-1 px-3.5 py-1.5 text-xs ${canSubmit
+                  ? "bg-navy text-white hover:bg-navy-light"
+                  : "bg-navy/40 text-white/70"
+                }`
+            }`}
           id="search-submit"
         >
           Search
+          <svg
+            className={`transition-transform duration-300 ${canSubmit ? "group-hover:translate-x-0.5" : ""} ${isHero ? "w-3.5 h-3.5" : "w-3 h-3"}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
         </button>
       </div>
     </motion.form>

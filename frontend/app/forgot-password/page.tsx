@@ -49,11 +49,11 @@ export default function ForgotPasswordPage() {
           </div>
           <h1 className="text-2xl font-bold text-navy mb-3">Check your email</h1>
           <p className="text-text-secondary mb-2 text-sm">
-            If <strong className="text-navy">{email}</strong> is registered, you'll receive a
+            If <strong className="text-navy">{email}</strong> is registered, you&apos;ll receive a
             password reset link shortly.
           </p>
           <p className="text-text-muted text-xs mb-8">
-            Didn't receive it? Check your spam folder.
+            Didn&apos;t receive it? Check your spam folder.
           </p>
           <Link href="/login"
             className="inline-block px-6 py-3 bg-navy text-white rounded-xl font-semibold text-sm
@@ -85,7 +85,7 @@ export default function ForgotPasswordPage() {
             </div>
             <h1 className="text-2xl font-bold text-navy">Reset your password</h1>
             <p className="text-text-secondary text-sm mt-1.5">
-              Enter your email and we'll send you a reset link.
+              Enter your email and we&apos;ll send you a reset link.
             </p>
           </div>
 

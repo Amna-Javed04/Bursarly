@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { sendChatMessage } from "@/app/lib/api";
 
@@ -23,6 +23,22 @@ export default function ChatWidget() {
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // Refs to access latest state without causing stale closures in event handlers
+  const activeScholarshipRef = useRef(activeScholarship);
+  useEffect(() => {
+    activeScholarshipRef.current = activeScholarship;
+  }, [activeScholarship]);
+
+  const loadingRef = useRef(loading);
+  useEffect(() => {
+    loadingRef.current = loading;
+  }, [loading]);
+
+  const inputRef = useRef(input);
+  useEffect(() => {
+    inputRef.current = input;
+  }, [input]);
+
   // Auto-scroll to bottom of chat
   useEffect(() => {
     if (isOpen) {
@@ -30,54 +46,12 @@ export default function ChatWidget() {
     }
   }, [messages, isOpen, loading]);
 
-  // Listen for custom event from detail page proactive prompt
-  useEffect(() => {
-    const handleOpenChat = (event: CustomEvent<{ scholarshipId?: string; scholarshipName?: string; initialMessage?: string }>) => {
-      const { scholarshipId, scholarshipName, initialMessage } = event.detail || {};
-      
-      if (scholarshipId && scholarshipName) {
-        setActiveScholarship({ id: scholarshipId, name: scholarshipName });
-      }
+  const handleSendMessage = useCallback(async (msgText?: string, targetScholarshipId?: string) => {
+    const messageToSend = (msgText || inputRef.current).trim();
+    if (!messageToSend || loadingRef.current) return;
 
-      setIsOpen(true);
-
-      if (initialMessage) {
-        handleSendMessage(initialMessage, scholarshipId || activeScholarship?.id);
-      }
-    };
-
-    window.addEventListener("open-bursarly-chat" as any, handleOpenChat);
-    return () => {
-      window.removeEventListener("open-bursarly-chat" as any, handleOpenChat);
-    };
-  }, [activeScholarship]);
-
-  // Set default initial greeting when chat opens for the first time
-  useEffect(() => {
-    if (isOpen && messages.length === 0) {
-      const greetingText = activeScholarship
-        ? `Hello! Ask me anything about **${activeScholarship.name}** — deadlines, required documents, or eligibility criteria!`
-        : "Hello! I am your Bursarly Assistant. Ask me about international scholarships, application deadlines, or how to use the Bursarly tracker!";
-      
-      setMessages([
-        {
-          id: "init-1",
-          sender: "bot",
-          text: greetingText,
-          grounded: !!activeScholarship,
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        },
-      ]);
-    }
-  }, [isOpen, activeScholarship, messages.length]);
-
-  const handleSendMessage = async (msgText?: string, targetScholarshipId?: string) => {
-    const messageToSend = (msgText || input).trim();
-    if (!messageToSend || loading) return;
-
-    const userMsgId = `user-${Date.now()}`;
     const userMsg: ChatMessage = {
-      id: userMsgId,
+      id: `user-${Date.now()}`,
       sender: "user",
       text: messageToSend,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
@@ -90,7 +64,7 @@ export default function ChatWidget() {
     try {
       const response = await sendChatMessage({
         message: messageToSend,
-        scholarship_id: targetScholarshipId || activeScholarship?.id || null,
+        scholarship_id: targetScholarshipId || activeScholarshipRef.current?.id || null,
       });
 
       const botMsg: ChatMessage = {
@@ -99,18 +73,22 @@ export default function ChatWidget() {
         text: response.reply,
         grounded: response.grounded,
         disclaimerAdded: response.disclaimer_added,
-        scholarshipName: response.scholarship_name || activeScholarship?.name,
+        scholarshipName: response.scholarship_name || activeScholarshipRef.current?.name,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
 
       setMessages((prev) => [...prev, botMsg]);
-    } catch (err: any) {
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "";
+      const unreachable = /failed to fetch|networkerror|load failed/i.test(detail);
       setMessages((prev) => [
         ...prev,
         {
           id: `err-${Date.now()}`,
           sender: "bot",
-          text: "Sorry, I ran into an issue connecting to Bursarly AI. Please try again shortly.",
+          text: unreachable
+            ? "I can't reach the Bursarly service right now, so I can't look anything up. Please check that the assistant server is running and try again."
+            : `Sorry, I ran into an issue answering that${detail ? ` (${detail})` : ""}. Please try again in a moment.`,
           disclaimerAdded: false,
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
@@ -118,7 +96,58 @@ export default function ChatWidget() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Keep a stable ref to handleSendMessage for the event listener
+  const handleSendMessageRef = useRef(handleSendMessage);
+  useEffect(() => {
+    handleSendMessageRef.current = handleSendMessage;
+  }, [handleSendMessage]);
+
+  // Listen for custom event from detail page proactive prompt — registered only once
+  useEffect(() => {
+    const handleOpenChat = (event: Event) => {
+      const customEvent = event as CustomEvent<{ scholarshipId?: string; scholarshipName?: string; initialMessage?: string }>;
+      const { scholarshipId, scholarshipName, initialMessage } = customEvent.detail || {};
+
+      if (scholarshipId && scholarshipName) {
+        setActiveScholarship({ id: scholarshipId, name: scholarshipName });
+      }
+
+      setIsOpen(true);
+
+      if (initialMessage) {
+        // Short delay to allow React state updates to flush before sending
+        setTimeout(() => {
+          handleSendMessageRef.current(initialMessage, scholarshipId || activeScholarshipRef.current?.id);
+        }, 150);
+      }
+    };
+
+    window.addEventListener("open-bursarly-chat", handleOpenChat);
+    return () => {
+      window.removeEventListener("open-bursarly-chat", handleOpenChat);
+    };
+  }, []); // Empty: register once only
+
+  // Set default initial greeting when chat opens for the first time
+  useEffect(() => {
+    if (isOpen && messages.length === 0) {
+      const greetingText = activeScholarship
+        ? `Hello! Ask me anything about **${activeScholarship.name}** — deadlines, required documents, or eligibility criteria!`
+        : "Hello! I am your Bursarly Assistant. Ask me about international scholarships, application deadlines, or how to use the Bursarly tracker!";
+
+      setMessages([
+        {
+          id: "init-1",
+          sender: "bot",
+          text: greetingText,
+          grounded: !!activeScholarship,
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+      ]);
+    }
+  }, [isOpen, activeScholarship, messages.length]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
