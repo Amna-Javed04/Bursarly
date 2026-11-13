@@ -30,3 +30,11 @@ yarn-error.log*
 # OS-specific
 .DS_Store
 Thumbs.db
+
+# Local runtime artifacts
+*.log
+.tmp-ref/
+backend/*.db.bak-*
+scraper/output/*/
+scraper/output/*_raw.html
+scraper/output/*_text.txt
