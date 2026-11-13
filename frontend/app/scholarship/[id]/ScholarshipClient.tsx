@@ -4,7 +4,8 @@ import { useState, useEffect, use } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getScholarshipById, addToTracker, type ScholarshipDetail } from "@/app/lib/api";
+import { getScholarshipById, addToTracker, calendarUrl, type ScholarshipDetail } from "@/app/lib/api";
+import VerificationBadge from "@/app/components/VerificationBadge";
 import {
   getDeadlineUrgency, getUrgencyClasses, formatDeadlineDate,
   formatDaysRemaining, getCountryFlag, formatFundingType, formatHelpCategory,
@@ -99,6 +100,13 @@ export default function ScholarshipClient({ initialData }: { initialData: Schola
       setTrackerError(err instanceof Error ? err.message : "Failed to add");
     }
   }
+
+  const confirmedCount = scholarship.deadlines.filter((d) => !d.is_estimated).length;
+  const checkedAt = scholarship.source_checked_at || scholarship.last_verified_at;
+  const checkedLabel = checkedAt
+    ? new Date(checkedAt).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })
+    : null;
+  const requirementsVerified = scholarship.requirements_check === "verified";
 
   const futureDeadlines = scholarship.deadlines
     .filter((d) => new Date(d.deadline_date) >= new Date(new Date().toDateString()))
@@ -196,6 +204,65 @@ export default function ScholarshipClient({ initialData }: { initialData: Schola
           </div>
         </div>
 
+        {/* Source & verification strip */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08 }}
+          className="mb-6 rounded-2xl border border-border/60 bg-surface/80 p-4 sm:p-5"
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex flex-wrap items-center gap-2">
+              <VerificationBadge
+                sourceCheck={scholarship.source_check}
+                hasConfirmedDeadline={confirmedCount > 0}
+              />
+              {checkedLabel && (
+                <span className="text-[11px] text-text-muted">Checked {checkedLabel}</span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+              {scholarship.official_url && (
+                <a
+                  href={scholarship.official_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-2
+                    text-xs font-medium text-navy transition-colors duration-300 hover:border-jade/40 hover:bg-jade/5"
+                >
+                  Official page
+                  <svg className="w-3 h-3 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 17L17 7M9 7h8v8" />
+                  </svg>
+                </a>
+              )}
+              {confirmedCount > 0 ? (
+                <a
+                  href={calendarUrl(scholarship.id)}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-navy px-3 py-2 text-xs font-semibold text-white
+                    transition-colors duration-300 hover:bg-navy-light"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 7V3m8 4V3M3 11h18M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Add to calendar
+                </a>
+              ) : (
+                <span className="text-[11px] text-text-muted">
+                  Calendar export needs a confirmed date.
+                </span>
+              )}
+            </div>
+          </div>
+
+          <p className="mt-3 border-t border-border/50 pt-3 text-[11.5px] leading-relaxed text-text-secondary">
+            {requirementsVerified
+              ? "The document list below was found on the official page."
+              : "Bursarly has not confirmed this document list on the official page — check it there before you rely on it."}
+          </p>
+        </motion.div>
+
         {/* Info Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           {/* Deadlines */}
@@ -205,6 +272,22 @@ export default function ScholarshipClient({ initialData }: { initialData: Schola
             {futureDeadlines.length > 0 ? (
               <div className="space-y-2.5">
                 {futureDeadlines.map((d) => {
+                  // Unconfirmed dates are never presented as a countdown.
+                  if (d.is_estimated) {
+                    return (
+                      <div key={d.id} className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-text-muted/60" />
+                          <span className="text-sm font-medium text-text-secondary">
+                            Date varies by track
+                          </span>
+                        </div>
+                        <span className="text-[10.5px] text-text-muted text-right leading-tight">
+                          Confirm on the official page
+                        </span>
+                      </div>
+                    );
+                  }
                   const urgency = getDeadlineUrgency(d.deadline_date);
                   const classes = getUrgencyClasses(urgency);
                   return (
@@ -217,6 +300,11 @@ export default function ScholarshipClient({ initialData }: { initialData: Schola
                     </div>
                   );
                 })}
+                {futureDeadlines.some((d) => d.is_estimated) && (
+                  <p className="pt-2 mt-1 border-t border-border/40 text-[11px] text-text-muted leading-snug">
+                    Only dates confirmed on the official page are shown as countdowns.
+                  </p>
+                )}
               </div>
             ) : (
               <p className="text-sm text-text-muted">No upcoming deadlines</p>

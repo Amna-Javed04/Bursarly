@@ -21,6 +21,8 @@ export interface ScholarshipListItem {
   official_url: string | null;
   last_verified_at: string;
   nearest_deadline: string | null;
+  source_check?: "verified" | "blocked" | "unreachable" | "not_checked";
+  requirements_check?: "verified" | "partial" | "unverified" | "not_checked";
 }
 
 export interface ScholarshipDeadline {
@@ -28,6 +30,8 @@ export interface ScholarshipDeadline {
   deadline_date: string;
   cycle_year: number;
   deadline_type: string;
+  /** True when the date could not be confirmed on the official page. */
+  is_estimated?: boolean;
 }
 
 export interface ScholarshipDocument {
@@ -60,6 +64,9 @@ export interface ScholarshipDetail {
   last_verified_at: string;
   status: string;
   source_type: string;
+  source_check?: "verified" | "blocked" | "unreachable" | "not_checked";
+  source_checked_at?: string | null;
+  requirements_check?: "verified" | "partial" | "unverified" | "not_checked";
   deadlines: ScholarshipDeadline[];
   documents: ScholarshipDocument[];
   eligibility: ScholarshipEligibility[];
@@ -261,6 +268,37 @@ export async function updateScholarshipAdmin(
     method: "PATCH",
     body: JSON.stringify(data),
   });
+}
+
+// ── Data quality (admin) ──
+
+export interface SourceHealth {
+  approved: number;
+  pending: number;
+  needs_fix: number;
+  by_source_check: Record<string, number>;
+  blocked: { id: string; name: string; official_url: string | null }[];
+  missing_requirements: { id: string; name: string; official_url: string | null }[];
+  confirmed_deadlines: number;
+  unconfirmed_deadlines: number;
+  last_checked_at: string | null;
+  recent_unmatched: UnmatchedQuery[];
+}
+
+export interface UnmatchedQuery {
+  id: string;
+  query_text: string;
+  asked_at: string;
+  resolved: boolean;
+}
+
+export async function getSourceHealth(): Promise<SourceHealth> {
+  return authFetch("/admin/source-health");
+}
+
+/** Direct download URL for a scholarship's confirmed-deadline calendar. */
+export function calendarUrl(scholarshipId: string): string {
+  return `${API_BASE}/scholarships/${scholarshipId}/calendar.ics`;
 }
 
 // ── Chatbot API ──

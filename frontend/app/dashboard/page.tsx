@@ -23,10 +23,13 @@ import {
   removeFromTracker,
   toggleRequirementStatus,
   getMyProfile,
+  getScholarships,
+  type ScholarshipListItem,
   type UserScholarship,
   type UserProfile,
   type UserRequirementStatus,
 } from "@/app/lib/api";
+import ScholarshipCard from "@/app/components/ScholarshipCard";
 import {
   daysUntilDeadline,
   formatDeadlineDate,
@@ -537,7 +540,42 @@ function DashboardContent() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); }, [load]);
+
+  // Suggestions derived from the saved onboarding profile — never a hardcoded list.
+  const [recommended, setRecommended] = useState<ScholarshipListItem[]>([]);
+  useEffect(() => {
+    if (!profile) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const all = await getScholarships();
+        if (cancelled) return;
+
+        const wantedCountries = new Set(
+          (profile.countries_of_interest ?? []).map((c) => c.toLowerCase())
+        );
+        const wantedDegree = (profile.degree_level ?? "").toLowerCase().split(/[\s/(]/)[0];
+        const trackedIds = new Set(tracked.map((t) => t.scholarship_id));
+
+        const matches = all.filter((s) => {
+          if (trackedIds.has(s.id)) return false;
+          if (wantedCountries.size > 0 && !wantedCountries.has(s.country.toLowerCase())) return false;
+          if (wantedDegree && !s.degree_level.toLowerCase().includes(wantedDegree)) return false;
+          return true;
+        });
+
+        setRecommended(matches.slice(0, 3));
+      } catch {
+        /* offline: no suggestions rather than wrong ones */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [profile, tracked]);
 
   function handleStatusChange(id: string, newStatus: "interested" | "tracking" | "applied") {
     setTracked((prev) =>
@@ -667,6 +705,30 @@ function DashboardContent() {
         </motion.div>
       )}
 
+      {/* Recommended for you */}
+      {!loading && recommended.length > 0 && (
+        <section className="mb-10">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-navy">
+                Matches your preferences
+              </h2>
+              <p className="text-xs text-text-secondary">
+                Based on your countries and degree level — not on what you already track.
+              </p>
+            </div>
+            <Link href="/browse" className="link-sweep text-xs font-medium text-navy">
+              See all
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            {recommended.map((s, i) => (
+              <ScholarshipCard key={s.id} scholarship={s} index={i} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Error */}
       {error && (
         <div className="mb-6 p-4 rounded-xl bg-deadline-urgent/5 border border-deadline-urgent/20 text-deadline-urgent text-sm font-medium">
@@ -697,7 +759,7 @@ function DashboardContent() {
           </div>
           <h2 className="text-lg font-bold text-navy mb-2">No scholarships tracked yet</h2>
           <p className="text-text-secondary text-sm mb-6 max-w-xs mx-auto">
-            Browse scholarships and click "Add to My Tracker" to start tracking deadlines here.
+            Browse scholarships and click &ldquo;Add to My Tracker&rdquo; to start tracking deadlines here.
           </p>
           <Link href="/browse"
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm
