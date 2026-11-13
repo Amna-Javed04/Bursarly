@@ -9,8 +9,9 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
 
     # Database Settings
-    # Default to a local SQLite database for easy local testing, but expect PostgreSQL for production/Supabase
-    DATABASE_URL: str = "sqlite:///./bursarly.db"
+    # Default to local SQLite database with absolute path for reliable resolution across CWDs
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///c:/Users/amnaa/Desktop/Bursarly/backend/bursarly.db")
+
 
     # CORS Settings
     # We restrict CORS to specific domains as required (defaulting to local frontend port for development)
@@ -40,12 +41,15 @@ class Settings(BaseSettings):
     LOGIN_RATE_LIMIT: str = "5/minute"
 
     # Chatbot Settings & Rate Limiting
-    CHAT_ANONYMOUS_RATE_LIMIT: str = "5/minute"
+    # A chat conversation easily exceeds 5 messages, so the anonymous budget is
+    # generous enough to finish a conversation without 429s.
+    CHAT_ANONYMOUS_RATE_LIMIT: str = "20/minute"
     CHAT_AUTH_RATE_LIMIT: str = "20/minute"
 
-    # LLM API Keys (OpenAI or Gemini)
+    # LLM API Keys (OpenAI or Gemini) & Search API (Tavily)
     OPENAI_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
+    TAVILY_API_KEY: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

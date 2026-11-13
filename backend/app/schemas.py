@@ -41,6 +41,9 @@ class ScholarshipDeadlineResponse(BaseModel):
     deadline_date: date
     cycle_year: int
     deadline_type: str
+    # True when the date could not be confirmed on the official page — such
+    # dates are shown as guidance only and never drive countdowns.
+    is_estimated: bool = False
 
     class Config:
         from_attributes = True
@@ -86,6 +89,8 @@ class ScholarshipListResponse(BaseModel):
     official_url: Optional[str] = None
     last_verified_at: datetime
     nearest_deadline: Optional[date] = None
+    source_check: str = "not_checked"
+    requirements_check: str = "not_checked"
 
     class Config:
         from_attributes = True
@@ -101,6 +106,9 @@ class ScholarshipDetailResponse(BaseModel):
     last_verified_at: datetime
     status: str
     source_type: str
+    source_check: str = "not_checked"
+    source_checked_at: Optional[datetime] = None
+    requirements_check: str = "not_checked"
     deadlines: List[ScholarshipDeadlineResponse] = []
     documents: List[ScholarshipDocumentResponse] = []
     eligibility: List[ScholarshipEligibilityResponse] = []
@@ -214,6 +222,39 @@ class UnmatchedQueryResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# --- User Scholarship Submission Schemas ---
+
+class ScholarshipSubmitRequest(BaseModel):
+    url: HttpUrl = Field(..., description="Official URL of the scholarship to submit")
+    name: Optional[str] = Field(None, max_length=255, description="Scholarship name (optional, will be extracted from page if omitted)")
+    country: Optional[str] = Field(None, max_length=100)
+    degree_level: Optional[str] = Field(None, max_length=100)
+    notes: Optional[str] = Field(None, max_length=1000, description="Any extra context the submitter wants to add")
+
+
+class ScholarshipSubmitResponse(BaseModel):
+    id: UUID
+    name: str
+    status: str
+    message: str
+
+    class Config:
+        from_attributes = True
+
+
+class SourceHealthResponse(BaseModel):
+    approved: int
+    pending: int
+    needs_fix: int
+    by_source_check: dict
+    blocked: List[dict]
+    missing_requirements: List[dict]
+    confirmed_deadlines: int
+    unconfirmed_deadlines: int
+    last_checked_at: Optional[datetime] = None
+    recent_unmatched: List[UnmatchedQueryResponse] = []
 
 
 # --- Error Schemas ---

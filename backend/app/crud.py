@@ -1,5 +1,7 @@
+import re
+import unicodedata
 from datetime import date
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from uuid import UUID
 from sqlalchemy import select, and_, or_, func
 from sqlalchemy.orm import Session, selectinload
@@ -16,7 +18,9 @@ def get_nearest_deadline_subquery(scholarship_table):
         .where(
             and_(
                 models.ScholarshipDeadline.scholarship_id == scholarship_table.id,
-                models.ScholarshipDeadline.deadline_date >= date.today()
+                models.ScholarshipDeadline.deadline_date >= date.today(),
+                # Only confirmed dates may drive countdowns / "days left" labels.
+                models.ScholarshipDeadline.is_estimated.is_(False),
             )
         )
         .order_by(models.ScholarshipDeadline.deadline_date.asc())
@@ -204,7 +208,8 @@ def get_user_tracked_scholarships(db: Session, user_id: UUID) -> List[models.Use
         .where(
             and_(
                 models.ScholarshipDeadline.scholarship_id == models.UserScholarship.scholarship_id,
-                models.ScholarshipDeadline.deadline_date >= date.today()
+                models.ScholarshipDeadline.deadline_date >= date.today(),
+                models.ScholarshipDeadline.is_estimated.is_(False),
             )
         )
         .order_by(models.ScholarshipDeadline.deadline_date.asc())
@@ -398,6 +403,7 @@ def get_approved_scholarship_with_details(
                 and_(
                     models.ScholarshipDeadline.scholarship_id == scholarship.id,
                     models.ScholarshipDeadline.deadline_date >= date.today(),
+                    models.ScholarshipDeadline.is_estimated.is_(False),
                 )
             )
             .order_by(models.ScholarshipDeadline.deadline_date.asc())
@@ -407,11 +413,83 @@ def get_approved_scholarship_with_details(
     return scholarship
 
 
+# Words that appear in almost every programme name — matching on these alone
+# would make "... scholarship" resolve to an arbitrary record.
+GENERIC_NAME_TOKENS = {
+    "scholarship", "scholarships", "scholar", "scholars", "program", "programs",
+    "programme", "programmes", "fund", "funding", "award", "awards", "grant",
+    "the", "for", "and", "of", "in", "at", "international", "global", "national",
+    "government", "university", "college", "school", "degree", "degrees",
+    "master", "masters", "undergraduate", "graduate", "postgraduate", "phd",
+    "doctorate", "research", "study", "studies", "student", "students",
+    "excellence", "opportunity", "general", "open",
+}
+
+
+def _fold(text: str) -> str:
+    text = unicodedata.normalize("NFKD", text or "")
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    return text.lower()
+
+
+def _words(text: str) -> List[str]:
+    return re.findall(r"[a-z0-9]+", _fold(text))
+
+
+def _name_tokens(name: str) -> List[str]:
+    """Distinctive tokens of a programme name, including acronyms in brackets."""
+    tokens = [t for t in _words(name) if len(t) >= 3 and t not in GENERIC_NAME_TOKENS]
+    # Keep acronyms such as (GKS), (CSC), (EMJMD) — they are strong identifiers.
+    for acronym in re.findall(r"\(([A-Z]{2,8})\)", name):
+        tokens.append(acronym.lower())
+    return list(dict.fromkeys(tokens))
+
+
+def _match_score(name: str, message: str, message_words: set) -> float:
+    """
+    Scores how specifically `message` refers to `name`.
+    0 means no acceptable match; higher is more specific.
+    """
+    folded_name = re.sub(r"[^a-z0-9]+", " ", _fold(name)).strip()
+    folded_msg = f" {re.sub(r'[^a-z0-9]+', ' ', _fold(message)).strip()} "
+
+    # Whole-name mention is unambiguous (allow a dash/parenthetical suffix).
+    core = re.sub(r"[\(\u2014-].*$", "", name).strip() or name
+    core_folded = re.sub(r"[^a-z0-9]+", " ", _fold(core)).strip()
+    if len(core_folded) >= 6 and f" {core_folded} " in folded_msg:
+        return 10.0 + len(core_folded) / 100
+    if len(folded_name) >= 6 and f" {folded_name} " in folded_msg:
+        return 10.0 + len(folded_name) / 100
+
+    tokens = _name_tokens(name)
+    if not tokens:
+        return 0.0
+
+    acronyms = {a.lower() for a in re.findall(r"\(([A-Z]{2,8})\)", name)}
+    matched = [t for t in tokens if t in message_words]
+    if not matched:
+        return 0.0
+
+    coverage = len(matched) / len(tokens)
+    # A single short token ("korea", "italy") is not specific enough on its own,
+    # unless it is the programme's own acronym ("gks", "csc", "emjmd").
+    if len(matched) == 1 and len(matched[0]) <= 5 and matched[0] not in acronyms:
+        return 0.0
+
+    return coverage + 0.15 * len(matched) + max(len(t) for t in matched) / 100
+
+
 def find_matching_approved_scholarship(
     db: Session, message: str
 ) -> Optional[models.Scholarship]:
     """
-    Searches for an approved scholarship if the user's message mentions a scholarship name or keyword.
+    Finds the approved scholarship the user is most specifically asking about.
+
+    Matching is word-boundary based and scored, so a generic phrase such as
+    "what documents does the scholarship need" never resolves to an arbitrary
+    programme. Returns None when no programme is named clearly enough — the
+    chatbot then answers from general guidance with a disclaimer instead of
+    attributing another programme's requirements to it.
     """
     approved_scholarships = (
         db.query(models.Scholarship)
@@ -424,27 +502,33 @@ def find_matching_approved_scholarship(
         .all()
     )
 
-    msg_lower = message.lower()
+    message_words = set(_words(message))
+    best: Optional[Tuple[float, models.Scholarship]] = None
     for sch in approved_scholarships:
-        name_lower = sch.name.lower()
-        # Check direct substring or key terms
-        key_terms = [w for w in name_lower.split() if len(w) >= 3 and w not in ["scholarship", "program", "for", "and", "the", "international"]]
-        if name_lower in msg_lower or any(term in msg_lower for term in key_terms):
-            sch.nearest_deadline = (
-                db.query(models.ScholarshipDeadline.deadline_date)
-                .filter(
-                    and_(
-                        models.ScholarshipDeadline.scholarship_id == sch.id,
-                        models.ScholarshipDeadline.deadline_date >= date.today(),
-                    )
-                )
-                .order_by(models.ScholarshipDeadline.deadline_date.asc())
-                .limit(1)
-                .scalar()
-            )
-            return sch
+        score = _match_score(sch.name, message, message_words)
+        if score <= 0:
+            continue
+        if best is None or score > best[0]:
+            best = (score, sch)
 
-    return None
+    if best is None or best[0] < 0.45:
+        return None
+
+    sch = best[1]
+    sch.nearest_deadline = (
+        db.query(models.ScholarshipDeadline.deadline_date)
+        .filter(
+            and_(
+                models.ScholarshipDeadline.scholarship_id == sch.id,
+                models.ScholarshipDeadline.deadline_date >= date.today(),
+                models.ScholarshipDeadline.is_estimated.is_(False),
+            )
+        )
+        .order_by(models.ScholarshipDeadline.deadline_date.asc())
+        .limit(1)
+        .scalar()
+    )
+    return sch
 
 
 def log_unmatched_scholarship_query(

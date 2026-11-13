@@ -15,6 +15,7 @@ import uuid
 from typing import Optional
 
 import jwt  # PyJWT
+from jwt import PyJWKClient
 from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
@@ -28,35 +29,52 @@ _bearer_scheme = HTTPBearer(auto_error=False)
 # Pre-defined test user UUID for local SQLite dev (no auth configured)
 DEFAULT_MOCK_USER_ID = "d0a1b2c3-d4e5-4f6a-8b9c-d0e1f2a3b4c5"
 
+# Cached PyJWKClient instance for fetching Supabase's public keys
+_jwks_client: Optional[PyJWKClient] = None
+
+
+def _get_jwks_client() -> Optional[PyJWKClient]:
+    global _jwks_client
+    if _jwks_client is None and settings.SUPABASE_URL and settings.SUPABASE_URL.strip():
+        jwks_url = f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1/.well-known/jwks.json"
+        _jwks_client = PyJWKClient(jwks_url)
+    return _jwks_client
+
 
 def _is_auth_configured() -> bool:
-    """Returns True when Supabase JWT secret is present (production mode)."""
-    return bool(settings.SUPABASE_JWT_SECRET and settings.SUPABASE_JWT_SECRET.strip())
+    """Returns True when Supabase URL is present (production auth enabled)."""
+    return bool(settings.SUPABASE_URL and settings.SUPABASE_URL.strip())
 
 
 def _decode_supabase_jwt(token: str) -> dict:
     """
-    Decodes and validates a Supabase-issued JWT.
+    Decodes and validates a Supabase-issued JWT using JWKS public keys (RS256 / ES256 / HS256).
     Raises HTTPException(401) with generic messages on any failure.
     """
     try:
+        jwks_client = _get_jwks_client()
+        if jwks_client:
+            signing_key = jwks_client.get_signing_key_from_jwt(token)
+            key = signing_key.key
+        else:
+            key = settings.SUPABASE_JWT_SECRET
+
         payload = jwt.decode(
             token,
-            settings.SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
+            key,
+            algorithms=["RS256", "ES256", "HS256"],
             options={"require": ["sub", "exp", "email"]},
             audience="authenticated",
         )
         return payload
-    except jwt.ExpiredSignatureError:
-        logger.info("JWT validation failed: token expired")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session expired. Please log in again.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    except jwt.InvalidTokenError as e:
-        logger.info("JWT validation failed: %s", type(e).__name__)
+    except Exception as e:
+        logger.info("JWT validation failed: %s (%s)", type(e).__name__, str(e))
+        if isinstance(e, jwt.ExpiredSignatureError):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session expired. Please log in again.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required.",

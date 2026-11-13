@@ -104,6 +104,13 @@ class Scholarship(Base):
     last_verified_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     status = Column(String(50), default="pending_review", nullable=False, index=True)
     source_type = Column(String(50), default="manual", nullable=False)
+    # Result of the last automated check against official_url.
+    # verified | blocked | unreachable | not_checked
+    source_check = Column(String(32), default="not_checked", nullable=False)
+    source_checked_at = Column(DateTime, nullable=True)
+    # Whether the stored document/eligibility lists could be found on that page.
+    # verified | partial | unverified | not_checked
+    requirements_check = Column(String(32), default="not_checked", nullable=False)
 
     # Relationships
     deadlines = relationship("ScholarshipDeadline", back_populates="scholarship", cascade="all, delete-orphan")
@@ -121,6 +128,9 @@ class ScholarshipDeadline(Base):
     deadline_date = Column(Date, nullable=False, index=True)
     cycle_year = Column(Integer, nullable=False)
     deadline_type = Column(String(100), nullable=False)  # e.g., "application_deadline", "interview_deadline"
+    # True when the exact date could NOT be confirmed against the official source page.
+    # Estimated dates are never used for countdowns or "days left" displays.
+    is_estimated = Column(Boolean, default=False, nullable=False, index=True)
 
     # Relationships
     scholarship = relationship("Scholarship", back_populates="deadlines")

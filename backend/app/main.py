@@ -5,7 +5,8 @@ from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, Query, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+from sqlalchemy import func
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -16,6 +17,7 @@ from app.database import engine, get_db, Base
 from app import crud, models, schemas
 from app.auth import get_current_user_id, get_admin_user, get_optional_user_id
 from app.services import chatbot
+from app.services.calendar import build_scholarship_calendar
 
 # ── Setup ─────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO)
@@ -23,6 +25,11 @@ logger = logging.getLogger(__name__)
 
 # Create tables for SQLite / local dev. In production Supabase migrations handle this.
 Base.metadata.create_all(bind=engine)
+
+# Add columns introduced after a database was first created (idempotent).
+from app.migrate import run_migrations  # noqa: E402
+
+run_migrations()
 
 # Rate limiter — uses client IP as the key.
 # In production behind a proxy, configure trusted_ips / X-Forwarded-For.
@@ -145,6 +152,31 @@ def read_scholarship_resources(
             detail="Scholarship not found or not yet approved.",
         )
     return crud.get_scholarship_resources(db, scholarship_id=id, category=category)
+
+
+@app.get("/scholarships/{id}/calendar.ics", tags=["scholarships"])
+def export_scholarship_calendar(id: uuid.UUID, db: Session = Depends(get_db)):
+    """Download an .ics calendar containing only officially confirmed deadlines."""
+    scholarship = crud.get_approved_scholarship_with_details(db, scholarship_id=id)
+    if not scholarship:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scholarship not found or not yet approved.",
+        )
+
+    calendar = build_scholarship_calendar(scholarship)
+    if "BEGIN:VEVENT" not in calendar:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This scholarship has no confirmed deadline to export. Check the official page.",
+        )
+
+    filename = "bursarly-deadline.ics"
+    return Response(
+        content=calendar,
+        media_type="text/calendar; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ── User Tracker Endpoints (protected — requires valid JWT) ────
@@ -326,6 +358,70 @@ def chat_with_assistant(
     Works for both logged-in and anonymous users.
     """
     return chatbot.process_chat_message(db, chat_input)
+
+
+@app.get("/admin/source-health", response_model=schemas.SourceHealthResponse, tags=["admin"])
+def get_source_health(
+    admin_id: uuid.UUID = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Admin only: data-quality overview built from the verification passes."""
+    approved = db.query(models.Scholarship).filter(models.Scholarship.status == "approved").count()
+    pending = db.query(models.Scholarship).filter(models.Scholarship.status == "pending_review").count()
+    needs_fix = db.query(models.Scholarship).filter(models.Scholarship.status == "needs_fix").count()
+
+    by_source_check = {
+        key: count
+        for key, count in db.query(
+            models.Scholarship.source_check, func.count(models.Scholarship.id)
+        ).group_by(models.Scholarship.source_check).all()
+    }
+
+    blocked = [
+        {"id": str(s.id), "name": s.name, "official_url": s.official_url}
+        for s in db.query(models.Scholarship).filter(models.Scholarship.source_check == "blocked").all()
+    ]
+
+    missing_requirements = [
+        {"id": str(s.id), "name": s.name, "official_url": s.official_url}
+        for s in db.query(models.Scholarship)
+        .filter(models.Scholarship.status == "approved")
+        .all()
+        if not s.documents
+    ]
+
+    confirmed = (
+        db.query(models.ScholarshipDeadline)
+        .filter(models.ScholarshipDeadline.is_estimated.is_(False))
+        .count()
+    )
+    unconfirmed = (
+        db.query(models.ScholarshipDeadline)
+        .filter(models.ScholarshipDeadline.is_estimated.is_(True))
+        .count()
+    )
+
+    last_checked = db.query(func.max(models.Scholarship.source_checked_at)).scalar()
+
+    recent_unmatched = (
+        db.query(models.UnmatchedScholarshipQuery)
+        .order_by(models.UnmatchedScholarshipQuery.asked_at.desc())
+        .limit(20)
+        .all()
+    )
+
+    return {
+        "approved": approved,
+        "pending": pending,
+        "needs_fix": needs_fix,
+        "by_source_check": by_source_check,
+        "blocked": blocked,
+        "missing_requirements": missing_requirements,
+        "confirmed_deadlines": confirmed,
+        "unconfirmed_deadlines": unconfirmed,
+        "last_checked_at": last_checked,
+        "recent_unmatched": recent_unmatched,
+    }
 
 
 @app.get("/admin/unmatched-queries", response_model=List[schemas.UnmatchedQueryResponse], tags=["admin"])
