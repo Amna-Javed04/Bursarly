@@ -79,7 +79,7 @@ export default function SignupPage() {
     setLoading(true);
     setServerError("");
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: form.email.trim().toLowerCase(),
       password: form.password,
       options: {
@@ -94,6 +94,22 @@ export default function SignupPage() {
     if (error) {
       console.error("Supabase Auth Error:", error);
       setServerError(`Error: ${error.message}`);
+      return;
+    }
+
+    // Email confirmation disabled on the project: there is a session already,
+    // so send the user straight into onboarding instead of a dead-end inbox
+    // message about an email that will never arrive.
+    if (data.session) {
+      router.replace("/onboarding");
+      return;
+    }
+
+    // Supabase answers an existing email with a user that has no identities,
+    // deliberately without revealing it. Saying "check your email" here would
+    // leave the person waiting for a mail that is never sent.
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      setServerError("An account with this email already exists. Log in instead — or reset the password if you've forgotten it.");
       return;
     }
 
