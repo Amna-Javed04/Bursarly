@@ -173,6 +173,22 @@ def main() -> int:
     finally:
         print("\n7. Cleanup")
         check("delete temporary user", call("DELETE", f"{url}/auth/v1/admin/users/{user_id}", headers=admin_headers)[0], (200, 204))
+        # The API stores its own profile/tracker rows for any user id it sees.
+        try:
+            import sqlite3
+
+            db = sqlite3.connect(ROOT / "backend" / "bursarly.db")
+            tracker_ids = [row[0] for row in db.execute("SELECT id FROM user_scholarships WHERE user_id = ?", (user_id,))]
+            for tracker_id in tracker_ids:
+                db.execute("DELETE FROM user_requirement_status WHERE user_scholarship_id = ?", (tracker_id,))
+            db.execute("DELETE FROM user_scholarships WHERE user_id = ?", (user_id,))
+            db.execute("DELETE FROM user_profile WHERE user_id = ?", (user_id,))
+            db.execute("DELETE FROM users WHERE id = ?", (user_id,))
+            db.commit()
+            db.close()
+            print("  PASS  local rows removed")
+        except Exception as exc:  # noqa: BLE001
+            print(f"  WARN  could not clean local rows: {type(exc).__name__}")
 
     print("\nResult:", "auth flow verified" if not failures else f"{len(failures)} failure(s)")
     for item in failures:
