@@ -73,10 +73,14 @@ def describe(value: str) -> str:
     return f"{len(value)} chars, starts '{value[:12]}'"
 
 
-def http_status(url: str, timeout: float = 12) -> tuple[int | None, str]:
+def http_status(url: str, timeout: float = 12, api_key: str = "") -> tuple[int | None, str]:
+    request = urllib.request.Request(url)
+    # Supabase's health endpoint requires the public key; JWKS does not.
+    if api_key:
+        request.add_header("apikey", api_key)
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as response:
-            return response.status, response.read(400).decode("utf-8", "replace")
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return response.status, response.read(20000).decode("utf-8", "replace")
     except urllib.error.HTTPError as exc:
         return exc.code, ""
     except Exception as exc:  # noqa: BLE001 - any transport error is a failure here
@@ -150,7 +154,7 @@ def main() -> int:
         fail(f"{host} does not resolve — the project was deleted, renamed, or the ref is wrong")
         return 1
 
-    status, _ = http_status(f"{backend_url}/auth/v1/health")
+    status, _ = http_status(f"{backend_url}/auth/v1/health", api_key=anon)
     if status == 200:
         ok("auth service healthy")
     else:
