@@ -264,7 +264,7 @@ export default function HomePage() {
               {/* back card */}
               <motion.div
                 style={reduce ? undefined : { x: backX, y: backY }}
-                className="absolute right-4 top-2 w-[240px] rounded-2xl border border-white/70 bg-white/85 p-4 shadow-[var(--shadow-lg)] backdrop-blur-xl float-soft"
+                className="absolute right-4 top-2 w-[240px] clay clay-lilac p-4 float-soft"
               >
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] uppercase tracking-[0.16em] text-text-muted">Readiness</span>
@@ -293,8 +293,7 @@ export default function HomePage() {
               {/* main card */}
               <motion.div
                 style={reduce ? undefined : { x: cardX, y: cardY }}
-                className="absolute left-0 top-16 w-[330px] rounded-[22px] border border-white/70 bg-white/90 p-5
-                  shadow-[0_32px_70px_-34px_rgba(59,37,64,0.4)] backdrop-blur-2xl"
+                className="absolute left-0 top-16 w-[330px] clay p-5"
               >
                 <div className="flex items-start justify-between">
                   <div>
@@ -339,7 +338,7 @@ export default function HomePage() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 1.1, duration: 0.8, ease: EASE }}
-                className="absolute bottom-6 right-2 flex items-center gap-2 rounded-full border border-white/70 bg-white/85 px-3.5 py-2 shadow-[var(--shadow-md)] backdrop-blur-xl"
+                className="absolute bottom-6 right-2 flex items-center gap-2 clay clay-pink px-3.5 py-2"
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-jade pulse-dot" />
                 <span className="text-[11px] text-text-secondary">Deadline synced · just now</span>
@@ -384,28 +383,56 @@ export default function HomePage() {
             </Reveal>
           </div>
 
-          <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
+          <div className="mt-14 grid grid-cols-1 gap-6 md:grid-cols-12 md:gap-x-8 md:gap-y-2">
             {FEATURES.map((feature, i) => (
-              <Reveal key={feature.title} delay={0.08 * i} y={28}>
+              <Reveal
+                key={feature.title}
+                delay={0.08 * i}
+                y={28}
+                className={
+                  i === 0
+                    ? "md:col-span-7"
+                    : i === 1
+                      ? "md:col-span-4 md:col-start-9 md:mt-24"
+                      : "md:col-span-5 md:col-start-3 md:-mt-8"
+                }
+              >
                 <SpotlightCard
-                  tilt
                   glow={feature.glow}
-                  className="h-full rounded-[24px] border border-black/[0.06] bg-white p-6 sm:p-7
-                    shadow-[0_1px_2px_rgba(5,8,15,0.04)] transition-shadow duration-500
-                    hover:shadow-[0_30px_60px_-34px_rgba(5,8,15,0.35)]"
+                  className={`clay clay-hover flex h-full flex-col justify-between group/card
+                    ${["clay-pink", "clay-lilac", "clay-peach"][i]} ${i === 0 ? "p-7 sm:p-9" : "p-6 sm:p-7"}`}
                 >
-                  <div className="flex items-start justify-between mb-8">
-                    <span className="grid place-items-center w-11 h-11 rounded-2xl bg-gradient-to-br from-[#C2658B] to-[#8E7BD6] text-white shadow-[0_10px_24px_-14px_rgba(194,101,139,0.85)]">
+                  <div className="flex items-start justify-between">
+                    <span className="grid place-items-center w-12 h-12 bg-white/70 text-navy">
                       {feature.icon}
                     </span>
-                    <span className="font-display text-2xl text-navy/15">{feature.step}</span>
+                    <span
+                      className={`font-display leading-none text-navy/20 transition-transform duration-500 group-hover/card:-translate-y-1 ${
+                        i === 0 ? "text-6xl" : "text-4xl"
+                      }`}
+                    >
+                      {feature.step}
+                    </span>
                   </div>
-                  <h3 className="text-[17px] font-semibold tracking-[-0.01em] text-navy">
-                    {feature.title}
-                  </h3>
-                  <p className="mt-2.5 text-[13.5px] leading-relaxed text-text-secondary">
-                    {feature.description}
-                  </p>
+
+                  <div className={i === 0 ? "mt-14" : "mt-10"}>
+                    <h3
+                      className={`font-display tracking-[-0.02em] text-navy ${
+                        i === 0 ? "text-[clamp(1.6rem,2.6vw,2.1rem)]" : "text-[22px]"
+                      }`}
+                    >
+                      {feature.title}
+                    </h3>
+                    <p className="mt-3 max-w-sm text-[13.5px] leading-relaxed text-navy/65">
+                      {feature.description}
+                    </p>
+                    <span className="mt-6 inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-navy/45 transition-colors duration-300 group-hover/card:text-navy">
+                      Step {feature.step}
+                      <svg className="h-3 w-3 transition-transform duration-500 group-hover/card:translate-x-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 12h14M13 6l6 6-6 6" />
+                      </svg>
+                    </span>
+                  </div>
                 </SpotlightCard>
               </Reveal>
             ))}
@@ -416,7 +443,7 @@ export default function HomePage() {
       {/* ── How it works ── */}
       <section className="relative pb-20 sm:pb-28" id="how-it-works">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="rounded-[32px] border border-black/[0.05] bg-white/60 backdrop-blur-sm px-6 sm:px-10 py-10 sm:py-12">
+          <div className="clay px-6 sm:px-10 py-10 sm:py-12">
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
               <Reveal>
                 <h2 className="text-[clamp(1.6rem,3vw,2.2rem)] font-semibold tracking-[-0.03em] text-navy leading-tight">
@@ -439,9 +466,9 @@ export default function HomePage() {
               </Reveal>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-black/[0.06] rounded-2xl overflow-hidden">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-navy/10 overflow-hidden">
               {STEPS.map((step, i) => (
-                <Reveal key={step.n} delay={0.1 * i} className="bg-white/40">
+                <Reveal key={step.n} delay={0.1 * i} className="bg-white/60">
                   <div className="group h-full p-6 sm:p-7 transition-colors duration-500 hover:bg-white">
                     <div className="flex items-center gap-3">
                       <span className="font-display text-[28px] leading-none text-jade-deep">{step.n}</span>
@@ -460,7 +487,7 @@ export default function HomePage() {
       {/* ── Stats ── */}
       <section className="relative py-16 sm:py-20" id="stats">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="rounded-[32px] border border-navy/[0.07] bg-white/55 px-6 py-10 backdrop-blur-sm sm:px-10">
+          <div className="clay px-6 py-10 sm:px-10">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-y-10 gap-x-6">
             {stats.map((stat, i) => (
               <Reveal key={stat.label} delay={i * 0.07}>
@@ -502,7 +529,7 @@ export default function HomePage() {
       <section className="relative py-20 sm:py-28">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <Reveal scale>
-            <div className="relative overflow-hidden rounded-[36px] border border-white/70 bg-white/85 px-6 sm:px-12 py-14 sm:py-20 text-center shadow-[var(--shadow-lg)] backdrop-blur-md">
+            <div className="clay clay-peach relative overflow-hidden px-6 sm:px-12 py-14 sm:py-20 text-center">
               <div
                 aria-hidden="true"
                 className="pointer-events-none absolute -top-24 left-1/2 h-64 w-[36rem] -translate-x-1/2 rounded-full bg-gradient-to-r from-teal/25 via-cobalt/20 to-gold/25 blur-[70px]"

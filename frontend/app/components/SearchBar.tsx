@@ -51,12 +51,9 @@ export default function SearchBar({
 
       <div
         className={`relative flex items-center rounded-2xl transition-all duration-500
-          ${isHero
-            ? "h-[60px] bg-white/80 backdrop-blur-xl border border-white/70 shadow-[0_18px_44px_-30px_rgba(59,37,64,0.5)] hover:border-navy/15"
-            : "h-11 bg-surface border border-border/70 hover:border-border"
-          }
-          ${isHero && focused ? "bg-white border-navy/20" : ""}
-          ${focused ? "shadow-[0_20px_60px_-24px_rgba(194,101,139,0.45)]" : ""}`}
+          ${isHero ? "h-[60px] clay" : "h-11 clay"}
+          ${focused ? "border-navy/25" : ""}
+          `}
       >
         <div className={`flex-shrink-0 transition-colors duration-300 ${focused ? "text-teal-dark" : "text-text-muted"} ${isHero ? "pl-5" : "pl-3"}`}>
           <svg
@@ -96,7 +93,7 @@ export default function SearchBar({
             transition-all duration-300 active:scale-[0.97] disabled:cursor-not-allowed
             ${isHero
               ? `mr-2 px-4 py-2.5 text-[13px] ${canSubmit
-                  ? "bg-gradient-to-r from-[#C2658B] to-[#8E7BD6] text-white shadow-[0_10px_26px_-14px_rgba(194,101,139,0.8)]"
+                  ? "clay-btn bg-gradient-to-r from-[#C2658B] to-[#8E7BD6] text-white"
                   : "bg-navy/[0.08] text-text-muted"
                 }`
               : `mr-1 px-3.5 py-1.5 text-xs ${canSubmit

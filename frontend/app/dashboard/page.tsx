@@ -721,9 +721,11 @@ function DashboardContent() {
               See all
             </Link>
           </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-x-8">
             {recommended.map((s, i) => (
-              <ScholarshipCard key={s.id} scholarship={s} index={i} />
+              <div key={s.id} className={i % 2 === 1 ? "md:mt-10" : ""}>
+                <ScholarshipCard scholarship={s} index={i} featured={i === 0} />
+              </div>
             ))}
           </div>
         </section>

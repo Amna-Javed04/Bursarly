@@ -256,7 +256,7 @@ export default function BrowsePage() {
             onClear={() => setSelectedDegrees(new Set())}
           />
 
-          <div className="inline-flex items-center rounded-xl border border-border bg-surface p-0.5">
+          <div className="inline-flex items-center border border-navy/10 bg-white/50 p-0.5">
             {([
               ["all", "All funding"],
               ["fully_funded", "Fully funded"],
@@ -322,7 +322,7 @@ export default function BrowsePage() {
               </p>
             )}
 
-            <div className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-x-8">
               {loading ? (
                 <SkeletonCard count={6} />
               ) : results.length === 0 ? (
@@ -333,7 +333,17 @@ export default function BrowsePage() {
                   </button>
                 </div>
               ) : (
-                results.map((s, i) => <ScholarshipCard key={s.id} scholarship={s} index={i} />)
+                results.map((s, i) => {
+                  const isLead = i % 5 === 0;
+                  return (
+                    <div
+                      key={s.id}
+                      className={`${isLead ? "md:col-span-2" : ""} ${i % 3 === 2 ? "md:mt-10" : ""}`}
+                    >
+                      <ScholarshipCard scholarship={s} index={i} featured={isLead} />
+                    </div>
+                  );
+                })
               )}
             </div>
 

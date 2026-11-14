@@ -108,6 +108,95 @@
   box-sizing: border-box;
 }
 
+/* ── Sharp geometry ──
+   Blocks are rectangular on purpose: no pills, no rounded cards. Circles are
+   reserved for the logo mark so the brand still reads as a stamp. */
+[class*="rounded-"] {
+  border-radius: 0 !important;
+}
+
+img[class*="rounded-full"],
+.keep-round {
+  border-radius: 9999px !important;
+}
+
+/* ── Clay surfaces ──
+   Matte, pressed-clay blocks: a soft inner bevel, a hard offset edge and a
+   diffuse cast shadow. Nothing glossy, nothing glassy. */
+:root {
+  --clay-surface: #FFF9F3;
+  --clay-pink: #F9D9E3;
+  --clay-lilac: #E3D9F8;
+  --clay-peach: #FBE0CB;
+  --clay-ink: #3B2540;
+}
+
+.clay {
+  position: relative;
+  background: var(--clay-surface);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow:
+    inset 0 2px 2px rgba(255, 255, 255, 0.95),
+    inset 0 -4px 10px rgba(59, 37, 64, 0.07),
+    7px 7px 0 -1px rgba(59, 37, 64, 0.09),
+    16px 20px 34px -18px rgba(59, 37, 64, 0.3);
+  transition:
+    transform 420ms var(--ease-out-expo),
+    box-shadow 420ms var(--ease-out-expo),
+    background-color 420ms var(--ease-out-expo);
+}
+
+.clay-pink { background: linear-gradient(155deg, #FDEDF3 0%, #F7D2DE 100%); }
+.clay-lilac { background: linear-gradient(155deg, #F1EBFD 0%, #DCCDF4 100%); }
+.clay-peach { background: linear-gradient(155deg, #FDF1E4 0%, #F9D9BE 100%); }
+.clay-plum { background: linear-gradient(155deg, #4A3050 0%, #2A1730 100%); }
+
+.clay-hover:hover {
+  transform: translate(-3px, -3px);
+  box-shadow:
+    inset 0 2px 2px rgba(255, 255, 255, 0.95),
+    inset 0 -4px 10px rgba(59, 37, 64, 0.07),
+    11px 11px 0 -1px rgba(59, 37, 64, 0.11),
+    26px 32px 48px -20px rgba(59, 37, 64, 0.36);
+}
+
+.clay-hover:active {
+  transform: translate(2px, 2px);
+  box-shadow:
+    inset 0 2px 3px rgba(59, 37, 64, 0.08),
+    inset 0 -1px 2px rgba(255, 255, 255, 0.9),
+    2px 2px 0 -1px rgba(59, 37, 64, 0.09),
+    8px 10px 20px -14px rgba(59, 37, 64, 0.28);
+}
+
+/* Stamp buttons: press into the page instead of glowing. */
+.clay-btn {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow:
+    inset 0 2px 2px rgba(255, 255, 255, 0.55),
+    inset 0 -3px 8px rgba(42, 23, 48, 0.25),
+    5px 5px 0 -1px rgba(42, 23, 48, 0.18),
+    10px 14px 24px -14px rgba(42, 23, 48, 0.55);
+  transition: transform 260ms var(--ease-out-expo), box-shadow 260ms var(--ease-out-expo);
+}
+
+.clay-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow:
+    inset 0 2px 2px rgba(255, 255, 255, 0.55),
+    inset 0 -3px 8px rgba(42, 23, 48, 0.25),
+    7px 7px 0 -1px rgba(42, 23, 48, 0.2),
+    16px 20px 30px -16px rgba(42, 23, 48, 0.6);
+}
+
+.clay-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow:
+    inset 0 2px 4px rgba(42, 23, 48, 0.3),
+    1px 1px 0 -1px rgba(42, 23, 48, 0.2);
+}
+
 html {
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;

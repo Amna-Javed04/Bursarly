@@ -47,11 +47,7 @@ export default function Navbar() {
         initial={{ y: -16, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-        className={`mx-auto max-w-6xl rounded-[20px] border transition-all duration-500
-          ${scrolled
-            ? "border-white/70 bg-white/85 shadow-[0_14px_40px_-22px_rgba(59,37,64,0.35)] backdrop-blur-2xl"
-            : "border-white/50 bg-white/55 shadow-[0_2px_20px_-14px_rgba(59,37,64,0.22)] backdrop-blur-xl"
-          }`}
+        className={`clay mx-auto max-w-6xl transition-all duration-500 ${scrolled ? "clay-hover" : ""}`}
       >
         <div className="flex items-center justify-between h-[62px] px-3.5 sm:px-5">
           {/* Logo */}
@@ -144,11 +140,8 @@ export default function Navbar() {
                     <Link
                       href="/signup"
                       id="nav-signup-btn"
-                      className="btn-shine group relative px-4 py-2 text-[13.5px] font-semibold rounded-full text-[var(--ink)]
-                        bg-gradient-to-r from-[#F2AFC9] via-[#D98CAC] to-[#B9A6E8]
-                        shadow-[0_8px_24px_-12px_rgba(194,101,139,0.55)]
-                        hover:shadow-[0_12px_30px_-10px_rgba(194,101,139,0.6)]
-                        hover:-translate-y-px transition-all duration-300"
+                      className="clay-btn btn-shine group relative px-4 py-2 text-[13.5px] font-semibold text-navy
+                        bg-gradient-to-r from-[#F2AFC9] via-[#D98CAC] to-[#B9A6E8]"
                     >
                       <span className="relative z-10 flex items-center gap-1.5">
                         Sign up
