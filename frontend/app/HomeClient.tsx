@@ -16,6 +16,9 @@ import Reveal from "./components/motion/Reveal";
 import SpotlightCard from "./components/motion/SpotlightCard";
 import CountUp from "./components/motion/CountUp";
 import Marquee from "./components/motion/Marquee";
+import ScholarshipCard from "./components/ScholarshipCard";
+import { sortByNearestDeadline } from "./lib/utils";
+import type { ScholarshipListItem } from "./lib/api";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -111,6 +114,8 @@ export default function HomePage() {
 
   const heroRef = useRef<HTMLDivElement>(null);
 
+  const [closingSoon, setClosingSoon] = useState<ScholarshipListItem[]>([]);
+
   // Real catalogue numbers — never hardcoded marketing figures.
   const [stats, setStats] = useState<Stat[]>([
     { label: "Scholarships tracked" },
@@ -133,6 +138,12 @@ export default function HomePage() {
           { label: "Linked source pages", text: "Official" },
           { label: "Cost, forever", text: "Free" },
         ]);
+
+        // Soonest first, using a confirmed date when there is one and the
+        // expected date otherwise.
+        setClosingSoon(
+          sortByNearestDeadline(list.filter((s) => s.nearest_deadline || s.expected_deadline)).slice(0, 3)
+        );
       } catch {
         // Backend offline: keep the neutral labels rather than invent numbers.
       }
@@ -360,6 +371,35 @@ export default function HomePage() {
           </Marquee>
         </div>
       </section>
+
+      {/* ── Closing soon ── */}
+      {closingSoon.length > 0 && (
+        <section className="relative pt-16 sm:pt-24" id="closing-soon">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="mb-8 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-jade-deep">
+                  Next up
+                </span>
+                <h2 className="mt-3 font-display text-[clamp(1.7rem,3vw,2.3rem)] leading-tight text-navy">
+                  Closing soonest
+                </h2>
+              </div>
+              <Link href="/browse" className="link-sweep text-sm font-medium text-navy">
+                All {stats[0]?.value ?? ""} scholarships
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-x-8">
+              {closingSoon.map((s, i) => (
+                <div key={s.id} className={i === 1 ? "md:mt-10" : ""}>
+                  <ScholarshipCard scholarship={s} index={i} featured={i === 0} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── Features ── */}
       <section className="relative py-20 sm:py-28" id="features">

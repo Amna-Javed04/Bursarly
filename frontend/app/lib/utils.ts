@@ -139,6 +139,29 @@ export function formatFundingType(type: string): string {
 }
 
 /**
+ * Orders scholarships by the date that matters next: a confirmed deadline when
+ * one exists, otherwise the expected date. Undated programmes go last, with the
+ * name as a stable tie-break.
+ */
+export function sortByNearestDeadline<
+  T extends { name: string; nearest_deadline?: string | null; expected_deadline?: string | null }
+>(items: T[]): T[] {
+  const when = (item: T): number => {
+    const raw = item.nearest_deadline ?? item.expected_deadline;
+    if (!raw) return Number.POSITIVE_INFINITY;
+    const time = new Date(raw).getTime();
+    return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time;
+  };
+
+  return [...items].sort((a, b) => {
+    const ta = when(a);
+    const tb = when(b);
+    if (ta === tb) return a.name.localeCompare(b.name);
+    return ta - tb;
+  });
+}
+
+/**
  * Format help category for display.
  */
 export function formatHelpCategory(category: string): string {

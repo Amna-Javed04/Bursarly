@@ -9,6 +9,7 @@ import SkeletonCard from "@/app/components/SkeletonCard";
 import SearchBar from "@/app/components/SearchBar";
 import PageTransition from "@/app/components/PageTransition";
 import Link from "next/link";
+import { sortByNearestDeadline } from "@/app/lib/utils";
 
 function SearchResults() {
   const searchParams = useSearchParams();
@@ -31,7 +32,7 @@ function SearchResults() {
       setError(null);
       try {
         const data = await searchScholarships(query);
-        setResults(data);
+        setResults(sortByNearestDeadline(data));
         setSearched(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Search failed");
@@ -99,7 +100,7 @@ function SearchResults() {
               </motion.p>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-x-8">
               {loading ? (
                 <SkeletonCard count={3} />
               ) : results.length === 0 && searched ? (
@@ -127,7 +128,9 @@ function SearchResults() {
                 </div>
               ) : (
                 results.map((s, i) => (
-                  <ScholarshipCard key={s.id} scholarship={s} index={i} />
+                  <div key={s.id} className={i % 3 === 2 ? "md:mt-10" : ""}>
+                    <ScholarshipCard scholarship={s} index={i} />
+                  </div>
                 ))
               )}
             </div>

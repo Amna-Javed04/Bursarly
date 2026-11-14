@@ -8,6 +8,7 @@ import SkeletonCard from "@/app/components/SkeletonCard";
 import SearchBar from "@/app/components/SearchBar";
 import PageTransition from "@/app/components/PageTransition";
 import { useAuth } from "@/app/context/AuthContext";
+import { sortByNearestDeadline } from "@/app/lib/utils";
 
 const DEGREE_BUCKETS = [
   { key: "undergraduate", label: "Undergraduate", match: /bachelor|undergraduate/i },
@@ -163,7 +164,7 @@ export default function BrowsePage() {
   );
 
   const results = useMemo(() => {
-    return all.filter((s) => {
+    const filtered = all.filter((s) => {
       if (selectedCountries.size > 0 && !selectedCountries.has(s.country)) return false;
       if (selectedDegrees.size > 0) {
         const matchesDegree = DEGREE_BUCKETS.filter((b) => b.match.test(s.degree_level)).some((b) =>
@@ -175,6 +176,8 @@ export default function BrowsePage() {
       if (verifiedOnly && s.source_check !== "verified") return false;
       return true;
     });
+
+    return sortByNearestDeadline(filtered);
   }, [all, selectedCountries, selectedDegrees, funding, verifiedOnly]);
 
   const activeFilters =
