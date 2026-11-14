@@ -172,17 +172,42 @@ A deadline is only marked confirmed when its date appears beside a deadline phra
 
 ## Deployment
 
-Recommended split: **Vercel** for the web app, **Render** for the API, **Supabase** for Postgres and auth.
+Recommended split: **Render** (or Vercel) for the web app, **Render** for the API, **Supabase** for Postgres and auth. SQLite is a local-development convenience only — a deployed filesystem is ephemeral, so production must use Postgres.
 
-**Backend (Render)**
-- Root directory `backend`, build `pip install -r requirements.txt`, start `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
-- Environment: `DATABASE_URL` (Supabase Postgres pooler URL), `SUPABASE_URL`, `ADMIN_API_KEY`, `CORS_ORIGINS=https://your-app.vercel.app`.
-- Do not rely on the bundled SQLite file: Render's filesystem is ephemeral. Tables are created automatically on first boot, so migrate the catalogue with a seed script before going live.
+`render.yaml` describes both Render services, so a clean deploy is: Render → **New → Blueprint** → select this repo → paste the values for the `sync: false` variables → **Deploy**. Otherwise create the two services by hand as described below.
 
-**Frontend (Vercel)**
-- Root directory `frontend`; framework preset Next.js.
+### 1. Database
+
+Supabase → Project Settings → Database → **Connection string** → URI. Use the **pooler** host and port `6543` (Render needs IPv4), and keep `?sslmode=require`. That URI is `DATABASE_URL`.
+
+### 2. Seed the catalogue
+
+A fresh Postgres database has the schema but no data. From the repo root:
+
+```bash
+venv/Scripts/python.exe scripts/seed_database.py --target "$DATABASE_URL" --dry-run   # preview
+venv/Scripts/python.exe scripts/seed_database.py --target "$DATABASE_URL"            # write
+```
+
+It copies 36 programmes, 50 deadlines, 232 documents, 161 eligibility criteria and 28 resources, converts SQLite text UUIDs/booleans/JSON to native Postgres types, and skips rows that already exist (use `--replace` to update them). User accounts and tracker entries are intentionally not copied — those come from Supabase Auth on first sign-in.
+
+### 3. API (Render)
+
+- Root directory `backend`, runtime Python, build `pip install -r requirements.txt`, start `uvicorn app.main:app --host 0.0.0.0 --port $PORT`, health check `/health`.
+- Environment: `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_API_KEY`, `CORS_ORIGINS=https://your-web-app.onrender.com`.
+- Leave `SUPABASE_JWT_SECRET` empty: tokens are verified through JWKS.
+
+### 4. Web app (Render or Vercel)
+
+- Root directory `frontend`, build `npm install && npm run build`, start `npx next start -p $PORT`.
 - Environment: `NEXT_PUBLIC_API_URL=https://your-api.onrender.com`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-- Update Supabase's Site URL and redirect URLs to the deployed domain.
+- These are inlined at build time: change one and you must redeploy.
+
+### 5. Supabase redirect URLs
+
+Authentication → URL Configuration: Site URL is the deployed web app, and the redirect list must include `https://your-web-app.onrender.com/auth/callback` and `/auth/reset-password`. Sign-in fails on the live domain until this is done.
+
+**Expected behaviour on free tiers:** Render services sleep after ~15 minutes idle, so the first request takes about a minute; Supabase pauses a project that has been idle for a week.
 
 ---
 
@@ -197,7 +222,7 @@ frontend/
   components/     Cards, badges, motion primitives, chat widget, navigation
   lib/            Typed API client, formatting and sorting helpers
 scraper/          Verification pipeline, dedupe, ingestion, weekly runner
-scripts/          Setup checker and end-to-end auth verifier
+scripts/          Setup checker, end-to-end auth verifier, database seeder
 ```
 
 ---

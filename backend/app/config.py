@@ -9,8 +9,18 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
 
     # Database Settings
-    # Default to local SQLite database with absolute path for reliable resolution across CWDs
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///c:/Users/amnaa/Desktop/Bursarly/backend/bursarly.db")
+    # Local development defaults to SQLite (relative to backend/); deployments set
+    # DATABASE_URL to a Postgres/Supabase connection string.
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./bursarly.db")
+
+    @field_validator("DATABASE_URL", mode="after")
+    @classmethod
+    def normalise_database_url(cls, v: str) -> str:
+        # Supabase and other providers still hand out the legacy `postgres://`
+        # scheme, which SQLAlchemy 2 refuses to load.
+        if v.startswith("postgres://"):
+            return "postgresql://" + v[len("postgres://"):]
+        return v
 
 
     # CORS Settings
