@@ -3,6 +3,9 @@ import { getScholarshipById } from '@/app/lib/api'
 import ScholarshipClient from './ScholarshipClient'
 import { notFound } from 'next/navigation'
 
+// Deadlines and verification state change often, so this route is never cached.
+export const dynamic = "force-dynamic"
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
   try {
@@ -25,6 +28,7 @@ export default async function ScholarshipPage({ params }: { params: Promise<{ id
   try {
     scholarship = await getScholarshipById(id)
   } catch (error) {
+    console.error(`[scholarship:${id}] detail fetch failed:`, error)
     notFound()
   }
 
