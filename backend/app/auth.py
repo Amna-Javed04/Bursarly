@@ -10,7 +10,11 @@ verifies the Bearer token issued by Supabase Auth, checks email
 confirmation, and rejects requests with generic 401 errors (no leaks).
 """
 
+import json
 import logging
+import time
+import urllib.error
+import urllib.request
 import uuid
 from typing import Optional
 
@@ -31,6 +35,11 @@ DEFAULT_MOCK_USER_ID = "d0a1b2c3-d4e5-4f6a-8b9c-d0e1f2a3b4c5"
 
 # Cached PyJWKClient instance for fetching Supabase's public keys
 _jwks_client: Optional[PyJWKClient] = None
+
+# Small cache of "is this account's email confirmed?" answers, keyed by user id,
+# so we do not call the admin API on every request within a session.
+_CONFIRMATION_CACHE: dict[str, tuple[float, bool]] = {}
+_CONFIRMATION_TTL_SECONDS = 120.0
 
 
 def _get_jwks_client() -> Optional[PyJWKClient]:
@@ -82,6 +91,42 @@ def _decode_supabase_jwt(token: str) -> dict:
         )
 
 
+def _email_confirmed(sub: str) -> Optional[bool]:
+    """
+    Asks the Supabase admin API whether the account's email is confirmed.
+
+    Newer Supabase access tokens carry no `email_confirmed_at` claim, so the
+    claim alone rejected every signed-in user with a 403. Returns None when the
+    answer cannot be determined (no service-role key, or the call failed).
+    """
+    if not sub or not settings.SUPABASE_SERVICE_ROLE_KEY:
+        return None
+
+    cached = _CONFIRMATION_CACHE.get(sub)
+    now = time.time()
+    if cached and now - cached[0] < _CONFIRMATION_TTL_SECONDS:
+        return cached[1]
+
+    url = f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1/admin/users/{sub}"
+    request = urllib.request.Request(
+        url,
+        headers={
+            "apikey": settings.SUPABASE_SERVICE_ROLE_KEY,
+            "Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=6) as response:
+            payload = json.load(response)
+    except Exception as exc:  # noqa: BLE001 - network/shape issues fall back below
+        logger.warning("Could not read email state for %s: %s", sub, type(exc).__name__)
+        return None
+
+    confirmed = bool(payload.get("email_confirmed_at") or payload.get("confirmed_at"))
+    _CONFIRMATION_CACHE[sub] = (now, confirmed)
+    return confirmed
+
+
 def get_current_user_id(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
@@ -108,8 +153,16 @@ def get_current_user_id(
 
         payload = _decode_supabase_jwt(credentials.credentials)
 
-        # Enforce email verification — Supabase sets email_confirmed_at when verified
-        if not payload.get("email_confirmed_at"):
+        # Enforce email verification. Modern tokens omit the claim, so ask the
+        # admin API; if that cannot answer, trust the session — Supabase will not
+        # issue one for an unconfirmed account while "Confirm email" is enabled.
+        claim_confirmed = payload.get("email_confirmed_at") or payload.get("confirmed_at")
+        if claim_confirmed is not None:
+            confirmed: Optional[bool] = bool(claim_confirmed)
+        else:
+            confirmed = _email_confirmed(str(payload.get("sub") or ""))
+
+        if confirmed is False:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Please verify your email address before accessing this resource.",

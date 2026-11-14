@@ -283,9 +283,15 @@ def read_my_profile(
     """Get the authenticated user's profile."""
     profile = crud.get_user_profile(db, user_id=current_user_id)
     if not profile:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User profile not found. Please complete the onboarding questionnaire.",
+        # A brand-new account has no answers yet. That is a normal state, not an
+        # error: return an empty profile so the client can render onboarding
+        # prompts without treating it as a failure.
+        return schemas.UserProfileResponse(
+            user_id=current_user_id,
+            degree_level=None,
+            countries_of_interest=[],
+            field_of_study=None,
+            needs_full_funding=False,
         )
     return profile
 

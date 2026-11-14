@@ -275,6 +275,9 @@ def update_user_scholarship_status(
             )
         )
         .order_by(models.ScholarshipDeadline.deadline_date.asc())
+        # Several programmes publish more than one future date (per track);
+        # scalar() raises when it sees multiple rows, so keep the earliest only.
+        .limit(1)
         .scalar()
     )
     return entry
