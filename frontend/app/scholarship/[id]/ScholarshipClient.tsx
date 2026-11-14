@@ -275,15 +275,22 @@ export default function ScholarshipClient({ initialData }: { initialData: Schola
                   // Unconfirmed dates are never presented as a countdown.
                   if (d.is_estimated) {
                     return (
-                      <div key={d.id} className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-text-muted/60" />
-                          <span className="text-sm font-medium text-text-secondary">
-                            Date varies by track
-                          </span>
+                      <div key={d.id} className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-2">
+                          <span className="mt-1.5 w-2 h-2 shrink-0 bg-deadline-warning/70" />
+                          <div>
+                            <span className="text-sm font-medium text-text-secondary">
+                              Expected {formatDeadlineDate(d.deadline_date)}
+                            </span>
+                            {d.deadline_type && d.deadline_type !== "Application deadline" && (
+                              <p className="mt-0.5 text-[11px] leading-snug text-text-muted">
+                                {d.deadline_type}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <span className="text-[10.5px] text-text-muted text-right leading-tight">
-                          Confirm on the official page
+                        <span className="shrink-0 text-right text-[10.5px] leading-tight text-text-muted">
+                          Unconfirmed · check page
                         </span>
                       </div>
                     );
@@ -302,7 +309,8 @@ export default function ScholarshipClient({ initialData }: { initialData: Schola
                 })}
                 {futureDeadlines.some((d) => d.is_estimated) && (
                   <p className="pt-2 mt-1 border-t border-border/40 text-[11px] text-text-muted leading-snug">
-                    Only dates confirmed on the official page are shown as countdowns.
+                    Expected dates are when this programme usually closes. Only dates found on the
+                    official page are shown as countdowns.
                   </p>
                 )}
               </div>

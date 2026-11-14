@@ -89,6 +89,9 @@ class ScholarshipListResponse(BaseModel):
     official_url: Optional[str] = None
     last_verified_at: datetime
     nearest_deadline: Optional[date] = None
+    # Typical date for the programme that could not be confirmed on the official
+    # page. Presented as "Expected", never as a countdown.
+    expected_deadline: Optional[date] = None
     source_check: str = "not_checked"
     requirements_check: str = "not_checked"
 

@@ -29,6 +29,7 @@ export default function ScholarshipCard({
   featured = false,
 }: ScholarshipCardProps) {
   const hasDeadline = !!scholarship.nearest_deadline;
+  const hasExpected = !hasDeadline && !!scholarship.expected_deadline;
   const urgency = hasDeadline ? getDeadlineUrgency(scholarship.nearest_deadline!) : null;
   const urgencyClasses = urgency ? getUrgencyClasses(urgency) : null;
   const isUrgent = urgency === "urgent";
@@ -118,10 +119,20 @@ export default function ScholarshipCard({
                     </svg>
                   </div>
                 </>
+              ) : hasExpected ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-deadline-warning/70" />
+                    <span className="text-xs font-medium text-deadline-warning">
+                      Expected {formatDeadlineDate(scholarship.expected_deadline!)}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-text-muted">Unconfirmed · check page</span>
+                </>
               ) : (
                 <>
                   <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-text-muted/50" />
+                    <span className="w-2 h-2 bg-text-muted/50" />
                     <span className="text-xs text-text-secondary">Deadline varies by track</span>
                   </div>
                   <span className="text-[11px] text-text-muted">Check official page</span>

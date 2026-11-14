@@ -69,6 +69,26 @@ def create_or_update_user_profile(
 
 # --- Scholarship CRUD ---
 
+def get_expected_deadline_subquery(scholarship_table):
+    """
+    Nearest future date that is typical for the programme but could not be
+    confirmed on the official page. Shown as "Expected …", never as a countdown.
+    """
+    return (
+        select(models.ScholarshipDeadline.deadline_date)
+        .where(
+            and_(
+                models.ScholarshipDeadline.scholarship_id == scholarship_table.id,
+                models.ScholarshipDeadline.deadline_date >= date.today(),
+                models.ScholarshipDeadline.is_estimated.is_(True),
+            )
+        )
+        .order_by(models.ScholarshipDeadline.deadline_date.asc())
+        .limit(1)
+        .scalar_subquery()
+    )
+
+
 def get_scholarships(
     db: Session,
     country: Optional[str] = None,
@@ -83,10 +103,13 @@ def get_scholarships(
     """
     # Subquery for nearest deadline
     nearest_deadline = get_nearest_deadline_subquery(models.Scholarship)
+    expected_deadline = get_expected_deadline_subquery(models.Scholarship)
 
-    query = db.query(models.Scholarship, nearest_deadline.label("nearest_deadline")).filter(
-        models.Scholarship.status == "approved"
-    )
+    query = db.query(
+        models.Scholarship,
+        nearest_deadline.label("nearest_deadline"),
+        expected_deadline.label("expected_deadline"),
+    ).filter(models.Scholarship.status == "approved")
 
     if country:
         query = query.filter(models.Scholarship.country.ilike(country))
@@ -98,9 +121,10 @@ def get_scholarships(
     results = query.offset(skip).limit(limit).all()
 
     scholarships = []
-    for s, nd in results:
-        # We dynamic-bind nearest_deadline to the scholarship object for Pydantic serialization
+    for s, nd, ed in results:
+        # We dynamic-bind the computed dates for Pydantic serialization
         s.nearest_deadline = nd
+        s.expected_deadline = ed
         scholarships.append(s)
 
     return scholarships
@@ -111,8 +135,13 @@ def search_scholarships(db: Session, query_str: str, skip: int = 0, limit: int =
     Search approved scholarships by name.
     """
     nearest_deadline = get_nearest_deadline_subquery(models.Scholarship)
+    expected_deadline = get_expected_deadline_subquery(models.Scholarship)
 
-    query = db.query(models.Scholarship, nearest_deadline.label("nearest_deadline")).filter(
+    query = db.query(
+        models.Scholarship,
+        nearest_deadline.label("nearest_deadline"),
+        expected_deadline.label("expected_deadline"),
+    ).filter(
         and_(
             models.Scholarship.status == "approved",
             models.Scholarship.name.ilike(f"%{query_str}%")
@@ -122,8 +151,9 @@ def search_scholarships(db: Session, query_str: str, skip: int = 0, limit: int =
     results = query.offset(skip).limit(limit).all()
 
     scholarships = []
-    for s, nd in results:
+    for s, nd, ed in results:
         s.nearest_deadline = nd
+        s.expected_deadline = ed
         scholarships.append(s)
 
     return scholarships

@@ -21,6 +21,8 @@ export interface ScholarshipListItem {
   official_url: string | null;
   last_verified_at: string;
   nearest_deadline: string | null;
+  /** Typical date, not confirmed on the official page. */
+  expected_deadline?: string | null;
   source_check?: "verified" | "blocked" | "unreachable" | "not_checked";
   requirements_check?: "verified" | "partial" | "unverified" | "not_checked";
 }
