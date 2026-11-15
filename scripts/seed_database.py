@@ -36,6 +36,41 @@ from sqlalchemy.engine import Engine
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "backend"))
 
+
+def normalise_url(url: str) -> str:
+    """SQLAlchemy 2 rejects the legacy `postgres://` scheme Supabase hands out."""
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+    return url
+
+
+def driver_url(url: str) -> str:
+    """Use whichever Postgres driver this interpreter actually has."""
+    url = normalise_url(url)
+    if not url.startswith("postgresql://"):
+        return url
+    try:
+        import psycopg2  # noqa: F401
+
+        return url
+    except ImportError:
+        pass
+    try:
+        import psycopg  # noqa: F401
+    except ImportError:
+        raise SystemExit(
+            "No Postgres driver in this Python. Install one with:\n"
+            '  python -m pip install "psycopg[binary]"'
+        )
+    return "postgresql+psycopg://" + url[len("postgresql://"):]
+
+
+# Importing the app builds its own engine from DATABASE_URL. Give it a URL this
+# interpreter can load (SQLite when nothing was set) so reading the model
+# definitions never requires a Postgres driver.
+_ENV_DATABASE_URL = os.environ.get("DATABASE_URL", "")
+os.environ["DATABASE_URL"] = driver_url(_ENV_DATABASE_URL) if _ENV_DATABASE_URL else "sqlite:///./bursarly.db"
+
 from app.models import Base  # noqa: E402  (needs the sys.path entry above)
 
 # Parents before children so foreign keys resolve.
@@ -56,15 +91,8 @@ SKIPPED_TABLES = [
 ]
 
 
-def normalise_url(url: str) -> str:
-    """SQLAlchemy 2 rejects the legacy `postgres://` scheme Supabase hands out."""
-    if url.startswith("postgres://"):
-        url = "postgresql://" + url[len("postgres://"):]
-    return url
-
-
 def make_engine(url: str, label: str) -> Engine:
-    url = normalise_url(url)
+    url = driver_url(url)
     kwargs: dict = {"pool_pre_ping": True}
     if url.startswith("sqlite"):
         # Resolve relative SQLite paths against backend/, not the caller's cwd.
@@ -144,7 +172,7 @@ def main() -> None:
     if not source_path.exists():
         raise SystemExit(f"Source database not found: {source_path}")
 
-    target_url = args.target or os.environ.get("DATABASE_URL", "")
+    target_url = args.target or _ENV_DATABASE_URL
     if not target_url:
         raise SystemExit(
             "No target database. Pass --target postgresql://... or set DATABASE_URL.\n"
